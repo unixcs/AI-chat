@@ -12,6 +12,8 @@ backend/.env
 
 # runtime data and logs
 backend/data.sqlite
+backend/data.sqlite-shm
+backend/data.sqlite-wal
 backend/backend-dev.log
 backend/*.log
 backend/nul
