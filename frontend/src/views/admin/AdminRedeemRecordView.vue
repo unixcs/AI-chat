@@ -93,4 +93,29 @@ const prevPage = async () => {
 .panel {
   padding: 16px;
 }
+
+.tableWrap table {
+  min-width: 860px;
+}
+
+@media (max-width: 980px) {
+  .panel {
+    padding: 12px;
+  }
+
+  .toolbarRow {
+    flex-direction: column;
+  }
+
+  .toolbarRow .ghostBtn,
+  .toolbarRow .primaryBtn {
+    width: 100%;
+  }
+
+  .pagerRow {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 6px;
+  }
+}
 </style>

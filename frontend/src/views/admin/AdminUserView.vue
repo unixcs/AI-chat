@@ -199,6 +199,10 @@ const resetPassword = async (userId) => {
   padding: 16px;
 }
 
+.tableWrap table {
+  min-width: 980px;
+}
+
 .actionGroup {
   display: flex;
   gap: 8px;
@@ -219,12 +223,38 @@ const resetPassword = async (userId) => {
 }
 
 @media (max-width: 980px) {
+  .panel {
+    padding: 12px;
+  }
+
   .toolbarRow {
     flex-direction: column;
   }
 
+  .toolbarRow .ghostBtn,
+  .toolbarRow .primaryBtn {
+    width: 100%;
+  }
+
   .actionGroup {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .actionGroup .ghostBtn {
+    width: 100%;
+    padding: 7px 6px;
+  }
+
+  .pagerRow {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 6px;
+  }
+
+  .editBox {
+    padding: 10px;
   }
 }
 </style>

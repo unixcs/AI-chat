@@ -16,8 +16,7 @@ const currentTheme = ref(getCurrentTheme())
 
 const menuItems = [
   { key: 'chat', label: '对话', path: '/app/chat' },
-  { key: 'profile', label: '我的', path: '/app/profile' },
-  { key: 'settings', label: '设置', path: '/app/settings' }
+  { key: 'profile', label: '我的', path: '/app/profile' }
 ]
 
 const activePath = computed(() => route.path)
@@ -95,7 +94,9 @@ onMounted(async () => {
         <button class="ghostBtn" @click="sidebarOpen = !sidebarOpen">菜单</button>
         <span>{{ authStore.profile?.nickname || '用户' }}</span>
       </header>
-      <router-view />
+      <section class="viewArea">
+        <router-view />
+      </section>
     </section>
 
     <div v-if="sidebarOpen" class="sidebarMask" @click.self="closeSidebar"></div>
@@ -108,14 +109,14 @@ onMounted(async () => {
   grid-template-columns: 248px 1fr;
   gap: 14px;
   padding: 14px;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .sidebar {
   padding: 16px;
   position: sticky;
   top: 14px;
-  height: calc(100vh - 28px);
+  height: calc(100dvh - 28px);
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-soft) 100%);
@@ -199,7 +200,16 @@ onMounted(async () => {
 }
 
 .mainArea {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   min-width: 0;
+}
+
+.viewArea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .mobileBar {
@@ -214,20 +224,59 @@ onMounted(async () => {
   .userShell {
     grid-template-columns: 1fr;
     padding: 10px;
+    min-height: 100dvh;
   }
 
   .sidebar {
     position: fixed;
-    left: -270px;
+    left: -94px;
     top: 10px;
     z-index: 50;
-    width: 250px;
-    height: calc(100vh - 20px);
+    width: 84px;
+    height: calc(100dvh - 20px);
+    padding: 10px 8px;
     transition: left 0.2s ease;
   }
 
   .sidebar.open {
     left: 10px;
+  }
+
+  .sidebarHead {
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+
+  .sidebarHead strong {
+    display: block;
+    font-size: 12px;
+    line-height: 1.3;
+    word-break: break-all;
+  }
+
+  .sidebarHead p {
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.35;
+    word-break: break-all;
+  }
+
+  .menuBtn {
+    text-align: center;
+    padding: 8px 4px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .themeRoundBtn {
+    align-self: center;
+    width: 30px;
+    height: 30px;
+  }
+
+  .logoutBtn {
+    padding: 6px 4px;
+    font-size: 11px;
   }
 
   .sidebarMask {
@@ -239,6 +288,11 @@ onMounted(async () => {
 
   .mobileBar {
     display: flex;
+    flex: 0 0 auto;
+  }
+
+  .mainArea {
+    min-height: calc(100dvh - 20px);
   }
 }
 </style>

@@ -273,4 +273,15 @@ textarea::placeholder {
   .toolbarRow {
     flex-direction: column;
   }
+
+  .adminMain .toolbarRow .ghostBtn,
+  .adminMain .toolbarRow .primaryBtn {
+    width: 100%;
+  }
+
+  .adminMain .pagerRow {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 6px;
+  }
 }

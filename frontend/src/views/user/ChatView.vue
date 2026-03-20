@@ -72,6 +72,20 @@ const submitMessage = async () => {
   }
 }
 
+const onComposerKeydown = (event) => {
+  if (event.key !== 'Enter') {
+    return
+  }
+  if (event.shiftKey) {
+    return
+  }
+  event.preventDefault()
+  if (chatStore.streaming) {
+    return
+  }
+  submitMessage()
+}
+
 onMounted(async () => {
   await chatStore.fetchConversations()
 })
@@ -100,8 +114,15 @@ watch(
           class="msgRow"
           :class="msg.role === 'user' ? 'isUser' : 'isBot'"
         >
-          <p>{{ msg.content }}</p>
-          <time>{{ formatTime(msg.createdAt) }}</time>
+          <img
+            class="msgAvatar"
+            :src="msg.role === 'user' ? '/assets/user-avatar.png' : '/assets/ai-avatar.png'"
+            :alt="msg.role === 'user' ? '用户头像' : 'AI头像'"
+          />
+          <div class="msgBody">
+            <p>{{ msg.content }}</p>
+            <time>{{ formatTime(msg.createdAt) }}</time>
+          </div>
         </article>
 
         <div v-if="chatStore.streaming" class="typingTips mutedText">AI 正在生成...</div>
@@ -109,14 +130,46 @@ watch(
 
       <div class="composer">
         <div class="composerRow">
-          <textarea v-model="inputValue" rows="2" placeholder="请输入内容..." />
+          <textarea
+            v-model="inputValue"
+            rows="2"
+            placeholder="请输入内容..."
+            @keydown="onComposerKeydown"
+          />
           <div class="composerButtons">
-            <button class="ghostBtn" @click="openHistoryDrawer">历史</button>
-            <button class="primaryBtn" :disabled="chatStore.streaming" @click="submitMessage">
-              {{ chatStore.streaming ? '生成中...' : '发送' }}
+            <button
+              class="circleIconBtn historyIconBtn"
+              title="历史对话"
+              aria-label="历史对话"
+              @click="openHistoryDrawer"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 6a2 2 0 0 1 2-2h3v2H6v12h12v-3h2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm8-2h8v8h-2V7.41l-5.3 5.3-1.4-1.42L16.58 6H12V4z"
+                />
+              </svg>
             </button>
-            <button v-if="chatStore.streaming" class="ghostBtn" @click="stopGenerating">
-              停止生成
+            <button
+              class="circleIconBtn sendIconBtn"
+              :disabled="chatStore.streaming"
+              :title="chatStore.streaming ? '生成中' : '发送消息'"
+              :aria-label="chatStore.streaming ? '生成中' : '发送消息'"
+              @click="submitMessage"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 20l18-8L3 4v6l12 2-12 2v6z" />
+              </svg>
+            </button>
+            <button
+              v-if="chatStore.streaming"
+              class="circleIconBtn stopIconBtn"
+              title="停止生成"
+              aria-label="停止生成"
+              @click="stopGenerating"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7h10v10H7z" />
+              </svg>
             </button>
           </div>
         </div>
@@ -154,12 +207,16 @@ watch(
   grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
+  min-height: 0;
+  width: 100%;
 }
 
 .chatPanel {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 28px);
+  height: calc(100dvh - 28px);
+  min-height: calc(100dvh - 28px);
+  width: 100%;
   overflow: hidden;
   position: relative;
 }
@@ -167,7 +224,7 @@ watch(
 .messageList {
   flex: 1;
   overflow: auto;
-  padding: 18px;
+  padding: 14px;
   background: var(--chat-surface);
 }
 
@@ -178,28 +235,46 @@ watch(
 
 .typingTips {
   text-align: center;
-  padding: 8px;
-  font-size: 13px;
+  padding: 6px;
+  font-size: 12px;
 }
 
 .msgRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   max-width: 80%;
   border-radius: 12px;
-  padding: 11px 13px;
-  margin-bottom: 12px;
+  padding: 9px 11px;
+  margin-bottom: 9px;
   border: 1px solid transparent;
   box-shadow: var(--shadow-soft);
+}
+
+.msgAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+.msgBody {
+  min-width: 0;
 }
 
 .msgRow p {
   margin: 0;
   white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .msgRow time {
   display: block;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 4px;
+  font-size: 11px;
   color: var(--text-soft);
 }
 
@@ -207,6 +282,7 @@ watch(
   margin-left: auto;
   background: var(--chat-user-bg);
   border-color: var(--chat-user-border);
+  flex-direction: row-reverse;
 }
 
 .isBot {
@@ -217,7 +293,7 @@ watch(
 
 .composer {
   border-top: 1px solid var(--border-main);
-  padding: 14px;
+  padding: 10px;
   background: var(--bg-panel);
 }
 
@@ -229,14 +305,16 @@ watch(
 
 .composer textarea {
   resize: none;
-  min-height: 56px;
+  min-height: 48px;
   width: 100%;
   flex: 1 1 auto;
   background: var(--bg-panel);
   color: var(--text-main);
   border: 1px solid var(--border-main);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .composerButtons {
@@ -245,6 +323,60 @@ watch(
   gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
+}
+
+.circleIconBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid var(--border-main);
+  background: var(--bg-panel);
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.circleIconBtn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.circleIconBtn:hover {
+  transform: translateY(-1px);
+  border-color: #b8c6de;
+  background: var(--bg-soft);
+}
+
+.sendIconBtn {
+  border-color: var(--bg-accent);
+  background: var(--bg-accent);
+  color: var(--text-white);
+  box-shadow: 0 6px 14px rgba(47, 124, 246, 0.28);
+}
+
+.sendIconBtn:hover {
+  background: var(--bg-accent-dark);
+  border-color: var(--bg-accent-dark);
+}
+
+.sendIconBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.historyIconBtn {
+  color: var(--text-soft);
+}
+
+.stopIconBtn {
+  color: var(--danger);
+  border-color: #fecaca;
+  background: #fff5f5;
 }
 
 .composerError {
@@ -263,7 +395,7 @@ watch(
 
 .historyDrawer {
   width: min(320px, 92vw);
-  height: 100vh;
+  height: 100dvh;
   padding: 16px;
   border-radius: 0;
   overflow: auto;
@@ -317,21 +449,50 @@ watch(
 @media (max-width: 960px) {
   .chatPage {
     grid-template-columns: 1fr;
+    min-height: 0;
+    width: 100%;
   }
 
   .chatPanel {
-    min-height: 62vh;
+    height: calc(100dvh - 84px);
+    min-height: calc(100dvh - 84px);
+    width: 100%;
   }
 
   .composerRow {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
   }
 
   .composerButtons {
     justify-content: flex-end;
     margin-left: 0;
-    margin-top: 6px;
+    margin-top: 0;
+    gap: 6px;
+  }
+
+  .circleIconBtn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .circleIconBtn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .msgRow {
+    max-width: 92%;
+  }
+
+  .messageList {
+    padding: 10px;
+  }
+
+  .composer {
+    padding: 8px;
   }
 }
 </style>

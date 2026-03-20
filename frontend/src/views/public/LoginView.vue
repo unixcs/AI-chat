@@ -44,9 +44,11 @@ const submitLogin = async () => {
 
 <template>
   <section class="authPage pageWrap">
+    <div class="authBackdrop"></div>
     <div class="card authCard">
-      <p class="authSub">欢迎回来</p>
-      <h2 class="sectionTitle">用户登录</h2>
+      <p class="authSub">欢迎登陆Thallo 🔮</p>
+      <h2 class="sectionTitle authTitle">欢迎登陆Thallo 🔮</h2>
+      <p class="authDesc">使用手机号密码登录以开始解读</p>
       <div class="formItem">
         <label>手机号</label>
         <input v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
@@ -68,21 +70,58 @@ const submitLogin = async () => {
 
 <style scoped>
 .authPage {
+  position: relative;
   display: grid;
   place-items: center;
   padding: 30px 24px;
+  overflow: hidden;
+}
+
+.authBackdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(16, 24, 38, 0.46), rgba(23, 32, 51, 0.32)),
+    url('/assets/login-bg.png') center / cover no-repeat;
+  filter: blur(1px) saturate(1.08);
+  transform: scale(1.03);
+}
+
+.authBackdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
 }
 
 .authCard {
+  position: relative;
+  z-index: 1;
   width: min(450px, 100%);
   padding: 28px;
-  background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-soft) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 249, 253, 0.94) 100%);
+  backdrop-filter: blur(8px);
 }
 
 .authSub {
   margin: 0;
   color: var(--text-soft);
   font-size: 13px;
+  text-align: center;
+}
+
+.authTitle {
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.authDesc {
+  margin: 0 0 16px;
+  color: var(--text-soft);
+  font-size: 13px;
+  text-align: center;
 }
 
 .fullBtn {

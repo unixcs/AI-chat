@@ -191,6 +191,24 @@ const formatTime = (time) => {
   padding: 16px;
 }
 
+.toolbarRow {
+  flex-wrap: wrap;
+}
+
+.toolbarRow input,
+.toolbarRow select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.toolbarRow .ghostBtn {
+  flex: 0 0 auto;
+}
+
+.tableWrap table {
+  min-width: 860px;
+}
+
 .tableWrap .ghostBtn {
   padding: 6px 10px;
   font-size: 12px;
@@ -205,6 +223,30 @@ const formatTime = (time) => {
 @media (max-width: 980px) {
   .panelWrap {
     grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .toolbarRow {
+    flex-direction: column;
+  }
+
+  .toolbarRow .ghostBtn,
+  .toolbarRow .primaryBtn {
+    width: 100%;
+  }
+
+  .pagerRow {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 6px;
   }
 }
 </style>

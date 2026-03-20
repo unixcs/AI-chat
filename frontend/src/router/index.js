@@ -6,7 +6,6 @@ import LoginView from '../views/public/LoginView.vue'
 import RegisterView from '../views/public/RegisterView.vue'
 import ChatView from '../views/user/ChatView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
-import SettingsView from '../views/user/SettingsView.vue'
 import AdminLoginView from '../views/admin/AdminLoginView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
 import AdminUserView from '../views/admin/AdminUserView.vue'
@@ -29,7 +28,7 @@ const routes = [
     children: [
       { path: 'chat', name: 'chat', component: ChatView },
       { path: 'profile', name: 'profile', component: ProfileView },
-      { path: 'settings', name: 'settings', component: SettingsView }
+      { path: 'settings', redirect: '/app/profile' }
     ]
   },
   { path: '/admin/login', name: 'adminLogin', component: AdminLoginView, meta: { guestOnlyAdmin: true } },

@@ -109,13 +109,29 @@ const prevPage = async () => {
 <style scoped>
 .conversationPanel {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: minmax(420px, 460px) minmax(0, 1fr);
   gap: 14px;
 }
 
 .leftPanel,
 .rightPanel {
   padding: 16px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbarRow {
+  flex-wrap: wrap;
+}
+
+.toolbarRow input {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.toolbarRow .ghostBtn {
+  flex: 0 0 auto;
 }
 
 .historyItem {
@@ -143,7 +159,8 @@ const prevPage = async () => {
 }
 
 .msgList {
-  max-height: calc(100vh - 170px);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -181,6 +198,31 @@ const prevPage = async () => {
 @media (max-width: 980px) {
   .conversationPanel {
     grid-template-columns: 1fr;
+  }
+
+  .leftPanel,
+  .rightPanel {
+    padding: 12px;
+  }
+
+  .toolbarRow {
+    flex-direction: column;
+  }
+
+  .toolbarRow .ghostBtn,
+  .toolbarRow .primaryBtn {
+    width: 100%;
+  }
+
+  .historyItem {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .msgRow header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }
 </style>
