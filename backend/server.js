@@ -1,3 +1,5 @@
+const fs = require('fs')
+const path = require('path')
 const express = require('express')
 const cors = require('cors')
 const bcrypt = require('bcryptjs')
@@ -13,6 +15,20 @@ const port = 3001
 const deepseekApiKey = process.env.DEEPSEEK_API_KEY || ''
 const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
 const deepseekBaseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1'
+const deepseekPromptFile = process.env.DEEPSEEK_SYSTEM_PROMPT_FILE || ''
+const deepseekSystemPrompt = (() => {
+  if (!deepseekPromptFile) {
+    return '你是一个专业、简洁、友好的中文 AI 助手。'
+  }
+  try {
+    const resolvedPath = path.isAbsolute(deepseekPromptFile)
+      ? deepseekPromptFile
+      : path.join(__dirname, deepseekPromptFile)
+    return fs.readFileSync(resolvedPath, 'utf8').trim()
+  } catch (error) {
+    return '你是一个专业、简洁、友好的中文 AI 助手。'
+  }
+})()
 
 function toPositiveInt(value, fallback) {
   const numberValue = Number(value)
@@ -145,7 +161,7 @@ const callDeepseekWithRetry = async ({ content, contextMessages, signal }) => {
           model: deepseekModel,
           stream: true,
           messages: [
-            { role: 'system', content: '你是一个专业、简洁、友好的中文 AI 助手。' },
+            { role: 'system', content: deepseekSystemPrompt },
             ...contextMessages,
             { role: 'user', content }
           ]
