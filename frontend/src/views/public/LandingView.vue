@@ -19,13 +19,7 @@ const toggleTheme = () => {
   <section class="landingPage pageWrap">
     <div class="contentWrap">
       <button class="themeToggle" @click="toggleTheme">{{ toggleLabel }}</button>
-      <div class="brandLine">AI MEMBERSHIP CHAT</div>
-      <h1>智能会员对话系统</h1>
-      <p>支持会员兑换、历史会话、后台管理与移动端访问</p>
-      <div class="ctaRow">
-        <router-link class="primaryBtn" to="/login">进入登录</router-link>
-        <router-link class="ghostBtn" to="/register">快速注册</router-link>
-      </div>
+      <router-link class="primaryBtn ctaOnly" to="/login">开启灵感</router-link>
     </div>
   </section>
 </template>
@@ -33,23 +27,23 @@ const toggleTheme = () => {
 <style scoped>
 .landingPage {
   background:
-    linear-gradient(120deg, rgba(9, 16, 33, 0.65), rgba(25, 93, 188, 0.45)),
-    url('https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&w=1600&q=80') center/cover;
+    linear-gradient(120deg, rgba(9, 16, 33, 0.62), rgba(31, 78, 147, 0.48)),
+    url('/assets/login-bg.png') center/cover;
   display: grid;
   place-items: center;
   padding: 24px;
 }
 
 .contentWrap {
-  width: min(760px, 100%);
+  width: min(520px, 100%);
   text-align: center;
   color: #fff;
-  background: rgba(11, 20, 41, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 44px 26px;
-  backdrop-filter: blur(5px);
-  box-shadow: 0 12px 34px rgba(12, 20, 46, 0.4);
+  background: rgba(11, 20, 41, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 32px 24px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 14px 30px rgba(12, 20, 46, 0.35);
   position: relative;
 }
 
@@ -66,37 +60,26 @@ const toggleTheme = () => {
   font-size: 12px;
 }
 
-.brandLine {
-  font-size: 12px;
-  letter-spacing: 2px;
-  opacity: 0.85;
-  margin-bottom: 12px;
-}
-
-h1 {
-  margin: 0 0 10px;
-  font-size: clamp(30px, 4vw, 42px);
-}
-
-p {
-  margin: 0 0 24px;
-  opacity: 0.92;
-  font-size: 15px;
-}
-
-.ctaRow {
-  display: flex;
+.ctaOnly {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
+  padding: 14px 34px;
+  border-radius: 999px;
+  font-size: 16px;
+  letter-spacing: 1px;
+  box-shadow: 0 10px 22px rgba(47, 124, 246, 0.38);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.ctaRow .ghostBtn {
-  background: rgba(255, 255, 255, 0.9);
+.ctaOnly:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 28px rgba(47, 124, 246, 0.35);
 }
 
 @media (max-width: 640px) {
   .contentWrap {
-    padding: 30px 18px;
+    padding: 26px 18px;
   }
 
   .themeToggle {
@@ -104,8 +87,8 @@ p {
     top: 10px;
   }
 
-  .ctaRow {
-    flex-direction: column;
+  .ctaOnly {
+    width: 100%;
   }
 }
 </style>
