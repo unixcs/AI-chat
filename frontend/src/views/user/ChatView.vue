@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { watch } from 'vue'
 import dayjs from 'dayjs'
 import { useChatStore } from '../../stores/chat'
@@ -11,6 +11,7 @@ const inputValue = ref('')
 const errorText = ref('')
 const showHistoryPanel = ref(false)
 const showHistoryDrawer = ref(false)
+const messageListRef = ref(null)
 
 const activeMessages = computed(() => {
   const id = chatStore.activeConversationId
@@ -52,6 +53,15 @@ const stopGenerating = () => {
   chatStore.stopStreaming()
 }
 
+const scrollToBottom = async () => {
+  await nextTick()
+  const el = messageListRef.value
+  if (!el) {
+    return
+  }
+  el.scrollTop = el.scrollHeight
+}
+
 const submitMessage = async () => {
   errorText.value = ''
   const content = inputValue.value.trim()
@@ -66,7 +76,9 @@ const submitMessage = async () => {
 
   inputValue.value = ''
   try {
-    await chatStore.postStreamMessage(content)
+    const streamPromise = chatStore.postStreamMessage(content)
+    await scrollToBottom()
+    await streamPromise
   } catch (error) {
     errorText.value = error.message || '请联系管理员 ⚠️E0'
   }
@@ -103,7 +115,7 @@ watch(
 <template>
   <section class="chatPage">
     <section class="card chatPanel">
-      <div class="messageList">
+      <div ref="messageListRef" class="messageList">
         <div v-if="activeMessages.length === 0" class="emptyTips mutedText">
           开始新的对话吧
         </div>
@@ -125,7 +137,9 @@ watch(
           </div>
         </article>
 
-        <div v-if="chatStore.streaming" class="typingTips mutedText">AI 正在生成...</div>
+        <div v-if="chatStore.streaming" class="typingTips mutedText">
+          灵感开启中，请稍等片刻...
+        </div>
       </div>
 
       <div class="composer">

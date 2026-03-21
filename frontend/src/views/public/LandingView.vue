@@ -1,24 +1,6 @@
-<script setup>
-import { computed, ref } from 'vue'
-
-const currentTheme = ref(document.documentElement.dataset.theme || 'light')
-
-const toggleLabel = computed(() => {
-  return currentTheme.value === 'dark' ? '切换浅色' : '切换深色'
-})
-
-const toggleTheme = () => {
-  const nextTheme = currentTheme.value === 'dark' ? 'light' : 'dark'
-  currentTheme.value = nextTheme
-  document.documentElement.dataset.theme = nextTheme
-  localStorage.setItem('theme', nextTheme)
-}
-</script>
-
 <template>
   <section class="landingPage pageWrap">
     <div class="contentWrap">
-      <button class="themeToggle" @click="toggleTheme">{{ toggleLabel }}</button>
       <router-link class="primaryBtn ctaOnly" to="/login">开启灵感</router-link>
     </div>
   </section>
@@ -47,19 +29,6 @@ const toggleTheme = () => {
   position: relative;
 }
 
-.themeToggle {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  border-radius: 8px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
 .ctaOnly {
   display: inline-flex;
   align-items: center;
@@ -80,11 +49,6 @@ const toggleTheme = () => {
 @media (max-width: 640px) {
   .contentWrap {
     padding: 26px 18px;
-  }
-
-  .themeToggle {
-    right: 10px;
-    top: 10px;
   }
 
   .ctaOnly {
