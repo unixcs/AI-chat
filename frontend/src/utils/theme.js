@@ -15,7 +15,7 @@ export const applyTheme = (theme) => {
 
 export const initTheme = () => {
   const savedTheme = localStorage.getItem('theme')
-  const theme = savedTheme || getSystemTheme()
+  const theme = savedTheme || 'dark'
   return applyTheme(theme)
 }
 

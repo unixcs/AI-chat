@@ -69,6 +69,11 @@ const submitMessage = async () => {
     return
   }
 
+  if (content.length > 1000) {
+    errorText.value = '最多只能占卜 1,000 字以内哦~'
+    return
+  }
+
   if (!canChat.value) {
     errorText.value = '会员过期，请续费后使用。'
     return
