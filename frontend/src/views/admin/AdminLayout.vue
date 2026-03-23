@@ -59,6 +59,7 @@ const logout = () => {
 
 <template>
   <section class="adminShell pageWrap">
+    <div v-if="collapse" class="asideMask" @click="collapse = false"></div>
     <aside class="adminAside" :class="{ collapse }">
       <div class="brandBar">
         <strong>管理系统</strong>
@@ -237,6 +238,13 @@ const logout = () => {
 @media (max-width: 960px) {
   .adminShell {
     grid-template-columns: 1fr;
+  }
+
+  .asideMask {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 55;
   }
 
   .adminAside {

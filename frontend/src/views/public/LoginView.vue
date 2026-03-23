@@ -46,7 +46,6 @@ const submitLogin = async () => {
   <section class="authPage pageWrap">
     <div class="authBackdrop"></div>
     <div class="card authCard">
-      <p class="authSub">欢迎登陆Thallo 🔮</p>
       <h2 class="sectionTitle authTitle">欢迎登陆Thallo 🔮</h2>
       <p class="authDesc">使用手机号密码登录以开始解读</p>
       <div class="formItem">
