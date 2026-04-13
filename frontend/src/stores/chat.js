@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { createConversation, getConversations, getMessages, sendMessage, streamMessage } from '../api/chat'
 import router from '../router'
+import { appendAssistantDelta, removeEmptyAssistantPlaceholder } from './chat-streaming'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -105,12 +106,13 @@ export const useChatStore = defineStore('chat', {
         createdAt: now
       }
       this.messagesMap[conversationId].push(assistantMessage)
+      const assistantMessageId = assistantMessage.id
       this.streaming = true
 
       return new Promise((resolve, reject) => {
         this.streamSource = streamMessage(conversationId, content, {
           onDelta: (delta) => {
-            assistantMessage.content += delta
+            appendAssistantDelta(this.messagesMap[conversationId], assistantMessageId, delta)
           },
           onDone: () => {
             this.streaming = false
@@ -121,9 +123,8 @@ export const useChatStore = defineStore('chat', {
           onError: (error) => {
             this.streaming = false
             this.streamSource = null
-            if (!assistantMessage.content) {
-              this.messagesMap[conversationId].pop()
-            }
+            const currentMessages = this.messagesMap[conversationId] || []
+            removeEmptyAssistantPlaceholder(currentMessages, assistantMessageId)
             if (error.message.includes('账号已在其他设备登录')) {
               localStorage.removeItem('userToken')
               localStorage.removeItem('adminToken')
