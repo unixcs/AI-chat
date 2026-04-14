@@ -28,6 +28,14 @@ export const resetAdminUserPassword = (userId, newPassword) => {
   )
 }
 
+export const updateAdminUserMemberExpireAt = (userId, memberExpireAt) => {
+  return http.put(
+    `/admin/users/${userId}/member-expire-at`,
+    { memberExpireAt },
+    { headers: { needAdminAuth: true } }
+  )
+}
+
 export const getAdminRoles = () => {
   return http.get('/admin/roles', { headers: { needAdminAuth: true } })
 }

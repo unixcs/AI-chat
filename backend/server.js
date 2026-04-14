@@ -7,6 +7,7 @@ const dayjs = require('dayjs')
 const dotenv = require('dotenv')
 const { readDb, writeDb, newId, getNow, addMonths } = require('./db')
 const { signToken, userAuth, adminAuth, verifyToken, validateUserSession } = require('./auth')
+const { normalizeAdminMemberExpireAtInput } = require('./admin-member-expire')
 
 dotenv.config()
 
@@ -832,6 +833,24 @@ app.put('/api/admin/users/:id/reset-password', adminAuth, (req, res) => {
   user.passwordHash = bcrypt.hashSync(String(newPassword), 10)
   writeDb(db)
   return sendOk(res, true)
+})
+
+app.put('/api/admin/users/:id/member-expire-at', adminAuth, (req, res) => {
+  const db = readDb()
+  const user = db.users.find((item) => item.id === req.params.id && item.role === 'user')
+
+  if (!user) {
+    return res.status(404).json({ message: '用户不存在' })
+  }
+
+  try {
+    user.memberExpireAt = normalizeAdminMemberExpireAtInput(req.body.memberExpireAt)
+  } catch (error) {
+    return res.status(400).json({ message: error.message || '会员到期时间格式不正确' })
+  }
+
+  writeDb(db)
+  return sendOk(res, toSafeUser(user))
 })
 
 app.get('/api/admin/roles', adminAuth, (req, res) => {

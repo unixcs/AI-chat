@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import dayjs from 'dayjs'
 import { getAdminMembers } from '../../api/admin'
+import { getMemberExpireDisplayMeta } from '../../utils/admin-member-expire'
 
 const members = ref([])
 
@@ -10,8 +10,8 @@ onMounted(async () => {
   members.value = data.data
 })
 
-const formatTime = (time) => {
-  return dayjs(time).format('YYYY-MM-DD HH:mm')
+const getMemberExpireMeta = (time) => {
+  return getMemberExpireDisplayMeta(time)
 }
 </script>
 
@@ -31,7 +31,16 @@ const formatTime = (time) => {
           <tr v-for="item in members" :key="item.id">
             <td>{{ item.phone }}</td>
             <td>{{ item.nickname }}</td>
-            <td>{{ formatTime(item.memberExpireAt) }}</td>
+            <td>
+              <div class="memberExpireCell">
+                <span class="tag" :class="getMemberExpireMeta(item.memberExpireAt).tagClass">
+                  {{ getMemberExpireMeta(item.memberExpireAt).label }}
+                </span>
+                <small class="memberExpireText mutedText">
+                  {{ getMemberExpireMeta(item.memberExpireAt).formattedTime }}
+                </small>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -48,5 +57,17 @@ table td,
 table th {
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+.memberExpireCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.memberExpireText {
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

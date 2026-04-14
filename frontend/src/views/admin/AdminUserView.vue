@@ -5,8 +5,14 @@ import {
   getAdminUsersByQuery,
   resetAdminUserPassword,
   updateAdminUser,
+  updateAdminUserMemberExpireAt,
   updateAdminUserStatus
 } from '../../api/admin'
+import {
+  getMemberExpireDisplayMeta,
+  formatMemberExpireAtForInput,
+  formatNowForMemberExpireInput
+} from '../../utils/admin-member-expire'
 
 const users = ref([])
 const total = ref(0)
@@ -31,6 +37,14 @@ const passwordState = reactive({
   newPassword: ''
 })
 
+const memberExpireState = reactive({
+  userId: '',
+  phone: '',
+  nickname: '',
+  value: '',
+  submitting: false
+})
+
 const loadUsers = async () => {
   loading.value = true
   noticeText.value = ''
@@ -51,7 +65,34 @@ const formatTime = (time) => {
   if (!time) {
     return '-'
   }
-  return dayjs(time).format('YYYY-MM-DD HH:mm')
+  return dayjs(time).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const getMemberExpireMeta = (time) => {
+  return getMemberExpireDisplayMeta(time)
+}
+
+const closeMemberExpireDialog = () => {
+  memberExpireState.userId = ''
+  memberExpireState.phone = ''
+  memberExpireState.nickname = ''
+  memberExpireState.value = ''
+  memberExpireState.submitting = false
+}
+
+const openMemberExpireDialog = (user) => {
+  memberExpireState.userId = user.id
+  memberExpireState.phone = user.phone
+  memberExpireState.nickname = user.nickname
+  memberExpireState.value = formatMemberExpireAtForInput(user.memberExpireAt)
+}
+
+const fillCurrentMemberExpireAt = () => {
+  memberExpireState.value = formatNowForMemberExpireInput()
+}
+
+const clearMemberExpireAt = () => {
+  memberExpireState.value = ''
 }
 
 const nextPage = async () => {
@@ -108,6 +149,23 @@ const resetPassword = async (userId) => {
   passwordState.userId = ''
   passwordState.newPassword = ''
 }
+
+const submitMemberExpireAt = async () => {
+  if (!memberExpireState.userId || memberExpireState.submitting) {
+    return
+  }
+
+  memberExpireState.submitting = true
+  try {
+    const value = memberExpireState.value || null
+    await updateAdminUserMemberExpireAt(memberExpireState.userId, value)
+    noticeText.value = '会员到期时间更新成功'
+    closeMemberExpireDialog()
+    await loadUsers()
+  } finally {
+    memberExpireState.submitting = false
+  }
+}
 </script>
 
 <template>
@@ -149,11 +207,21 @@ const resetPassword = async (userId) => {
                 {{ item.status === 'active' ? '正常' : '禁用' }}
               </span>
             </td>
-            <td>{{ formatTime(item.memberExpireAt) }}</td>
+            <td>
+              <div class="memberExpireCell">
+                <span class="tag" :class="getMemberExpireMeta(item.memberExpireAt).tagClass">
+                  {{ getMemberExpireMeta(item.memberExpireAt).label }}
+                </span>
+                <small class="memberExpireText mutedText">
+                  {{ getMemberExpireMeta(item.memberExpireAt).formattedTime }}
+                </small>
+              </div>
+            </td>
             <td>{{ formatTime(item.createdAt) }}</td>
             <td>
               <div class="actionGroup">
                 <button class="ghostBtn" @click="startEdit(item)">编辑</button>
+                <button class="ghostBtn" @click="openMemberExpireDialog(item)">设置会员</button>
                 <button
                   class="ghostBtn"
                   @click="updateStatus(item, item.status === 'active' ? 'disabled' : 'active')"
@@ -191,6 +259,49 @@ const resetPassword = async (userId) => {
         <button class="ghostBtn" @click="passwordState.userId = ''">取消</button>
       </div>
     </section>
+
+    <div
+      v-if="memberExpireState.userId"
+      class="memberExpireDialogMask"
+      @click.self="closeMemberExpireDialog"
+    >
+      <section class="memberExpireDialog card">
+        <div class="memberExpireDialogHead">
+          <div>
+            <h3>设置会员到期时间</h3>
+            <p class="mutedText">
+              {{ memberExpireState.nickname || '未设置昵称' }} / {{ memberExpireState.phone }}
+            </p>
+          </div>
+          <button class="ghostBtn" @click="closeMemberExpireDialog">关闭</button>
+        </div>
+
+        <div class="formItem memberExpireField">
+          <label for="member-expire-at-input">会员到期时间</label>
+          <input
+            id="member-expire-at-input"
+            v-model="memberExpireState.value"
+            type="datetime-local"
+            step="1"
+          />
+          <p class="mutedText memberExpireHelp">支持精确到秒，留空表示清除会员时间</p>
+        </div>
+
+        <div class="memberExpireDialogActions">
+          <button class="ghostBtn" @click="fillCurrentMemberExpireAt">此刻</button>
+          <button class="ghostBtn" @click="clearMemberExpireAt">清除</button>
+          <span class="memberExpireDialogSpacer"></span>
+          <button class="ghostBtn" @click="closeMemberExpireDialog">取消</button>
+          <button
+            class="primaryBtn"
+            :disabled="memberExpireState.submitting"
+            @click="submitMemberExpireAt"
+          >
+            {{ memberExpireState.submitting ? '保存中...' : '确定' }}
+          </button>
+        </div>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -220,6 +331,105 @@ const resetPassword = async (userId) => {
 
 .editBox h3 {
   margin: 0 0 10px;
+}
+
+.memberExpireCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.memberExpireText {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.memberExpireDialogMask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(3, 8, 20, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.memberExpireDialog {
+  width: min(560px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(110, 143, 191, 0.22);
+  background:
+    linear-gradient(180deg, rgba(23, 34, 51, 0.96) 0%, rgba(13, 21, 35, 0.98) 100%),
+    var(--bg-panel);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.55);
+}
+
+.memberExpireDialogHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.memberExpireDialogHead h3 {
+  margin: 0 0 6px;
+  color: #f8fbff;
+}
+
+.memberExpireDialogHead .mutedText {
+  margin: 0;
+  color: #97abc8;
+}
+
+.memberExpireField {
+  margin-bottom: 18px;
+}
+
+.memberExpireField label {
+  color: #d8e4f6;
+}
+
+.memberExpireField input {
+  color-scheme: dark;
+  border-color: rgba(114, 140, 180, 0.35);
+  background: rgba(13, 20, 33, 0.96);
+  color: #f8fbff;
+}
+
+.memberExpireField input:focus {
+  outline: 2px solid rgba(94, 160, 255, 0.24);
+  border-color: #5ea0ff;
+}
+
+.memberExpireHelp {
+  margin: 8px 0 0;
+  color: #8fa6c5;
+}
+
+.memberExpireDialogActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.memberExpireDialogActions .ghostBtn {
+  border-color: rgba(114, 140, 180, 0.35);
+  background: rgba(14, 22, 37, 0.88);
+  color: #e5ecf6;
+}
+
+.memberExpireDialogActions .ghostBtn:hover {
+  border-color: rgba(148, 176, 221, 0.55);
+  background: rgba(24, 36, 57, 0.98);
+}
+
+.memberExpireDialogSpacer {
+  flex: 1;
 }
 
 @media (max-width: 980px) {
@@ -255,6 +465,33 @@ const resetPassword = async (userId) => {
 
   .editBox {
     padding: 10px;
+  }
+
+  .memberExpireDialogMask {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .memberExpireDialog {
+    width: 100%;
+    padding: 16px;
+    border-radius: 16px 16px 12px 12px;
+  }
+
+  .memberExpireDialogHead,
+  .memberExpireDialogActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .memberExpireDialogSpacer {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .actionGroup {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
