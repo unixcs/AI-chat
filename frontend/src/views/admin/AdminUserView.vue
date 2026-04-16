@@ -169,7 +169,8 @@ const submitMemberExpireAt = async () => {
 </script>
 
 <template>
-  <section class="card panel">
+  <section class="card panelShell panel userPanel">
+    <span class="sectionLabel">Users</span>
     <h2 class="sectionTitle">用户管理</h2>
     <div class="toolbarRow">
       <input v-model="queryState.phone" placeholder="按手机号筛选" />
@@ -307,11 +308,22 @@ const submitMemberExpireAt = async () => {
 
 <style scoped>
 .panel {
-  padding: 16px;
+  padding: 20px;
+}
+
+.userPanel .sectionTitle {
+  margin: 14px 0 18px;
 }
 
 .tableWrap table {
-  min-width: 980px;
+  width: 100%;
+}
+
+.tableWrap :deep(th),
+.tableWrap :deep(td) {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .actionGroup {
@@ -435,6 +447,12 @@ const submitMemberExpireAt = async () => {
 @media (max-width: 980px) {
   .panel {
     padding: 12px;
+  }
+
+  .tableWrap :deep(th),
+  .tableWrap :deep(td) {
+    padding: 11px 10px;
+    font-size: 13px;
   }
 
   .toolbarRow {

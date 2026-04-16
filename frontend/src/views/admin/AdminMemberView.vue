@@ -16,7 +16,8 @@ const getMemberExpireMeta = (time) => {
 </script>
 
 <template>
-  <section class="card panel">
+  <section class="card panelShell panel memberPanel">
+    <span class="sectionLabel">Members</span>
     <h2 class="sectionTitle">会员管理</h2>
     <div class="tableWrap">
       <table>
@@ -50,7 +51,11 @@ const getMemberExpireMeta = (time) => {
 
 <style scoped>
 .panel {
-  padding: 16px;
+  padding: 20px;
+}
+
+.memberPanel .sectionTitle {
+  margin: 14px 0 20px;
 }
 
 table td,

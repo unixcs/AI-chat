@@ -11,7 +11,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="card panel">
+  <section class="card panelShell panel menuPanel">
+    <span class="sectionLabel">Navigation</span>
     <h2 class="sectionTitle">菜单管理</h2>
     <div class="tableWrap">
       <table>
@@ -36,7 +37,11 @@ onMounted(async () => {
 
 <style scoped>
 .panel {
-  padding: 16px;
+  padding: 20px;
+}
+
+.menuPanel .sectionTitle {
+  margin: 14px 0 20px;
 }
 
 table td,

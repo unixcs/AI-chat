@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  clearDraftSessionFlag,
   consumeFreshChatFlag,
+  hasDraftSessionFlag,
+  shouldStartFreshOnChatEntry,
+  storeDraftSessionFlag,
   shouldCreateFreshConversationOnEntry,
   storeFreshChatFlag
 } from '../src/utils/chat-entry.js'
@@ -43,4 +47,32 @@ test('consumeFreshChatFlag returns true once and clears the marker', () => {
 test('shouldCreateFreshConversationOnEntry only triggers when the login marker is present', () => {
   assert.equal(shouldCreateFreshConversationOnEntry(true), true)
   assert.equal(shouldCreateFreshConversationOnEntry(false), false)
+})
+
+test('draft session flag survives refresh until explicitly cleared', () => {
+  const storage = createMemoryStorage()
+
+  storeDraftSessionFlag(storage)
+
+  assert.equal(hasDraftSessionFlag(storage), true)
+  clearDraftSessionFlag(storage)
+  assert.equal(hasDraftSessionFlag(storage), false)
+})
+
+test('shouldStartFreshOnChatEntry remains true after fresh marker is consumed while draft session is active', () => {
+  const local = createMemoryStorage()
+  const session = createMemoryStorage()
+
+  storeFreshChatFlag(local)
+  storeDraftSessionFlag(session)
+
+  assert.equal(shouldStartFreshOnChatEntry({
+    hasFreshChatFlag: consumeFreshChatFlag(local),
+    hasDraftSession: hasDraftSessionFlag(session)
+  }), true)
+
+  assert.equal(shouldStartFreshOnChatEntry({
+    hasFreshChatFlag: consumeFreshChatFlag(local),
+    hasDraftSession: hasDraftSessionFlag(session)
+  }), true)
 })

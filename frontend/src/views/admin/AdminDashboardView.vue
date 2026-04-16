@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getAdminDashboard } from '../../api/admin'
 
 const metrics = ref({
@@ -9,6 +9,13 @@ const metrics = ref({
   conversationCount: 0
 })
 
+const metricCards = computed(() => [
+  { label: '用户总数', value: metrics.value.userCount, hint: '平台已注册用户', tone: 'soft' },
+  { label: '会员用户', value: metrics.value.memberCount, hint: '当前具有会员身份', tone: 'accent' },
+  { label: '今日兑换', value: metrics.value.todayRedeemCount, hint: '今天已完成兑换', tone: 'warm' },
+  { label: '会话总数', value: metrics.value.conversationCount, hint: '累计沉淀会话数据', tone: 'deep' }
+])
+
 onMounted(async () => {
   const { data } = await getAdminDashboard()
   metrics.value = data.data
@@ -16,27 +23,47 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="dashboardGrid">
-    <article class="card metricCard">
-      <p>用户总数</p>
-      <h3>{{ metrics.userCount }}</h3>
+  <section class="dashboardPage">
+    <article class="dashboardHero card panelShell">
+      <div>
+        <span class="sectionLabel">Overview</span>
+        <h2 class="sectionTitle">后台控制台</h2>
+      </div>
+      <div class="heroStats mutedText">共 4 项核心指标</div>
     </article>
-    <article class="card metricCard">
-      <p>会员用户</p>
-      <h3>{{ metrics.memberCount }}</h3>
-    </article>
-    <article class="card metricCard">
-      <p>今日兑换</p>
-      <h3>{{ metrics.todayRedeemCount }}</h3>
-    </article>
-    <article class="card metricCard">
-      <p>会话总数</p>
-      <h3>{{ metrics.conversationCount }}</h3>
-    </article>
+
+    <section class="dashboardGrid">
+      <article v-for="item in metricCards" :key="item.label" class="metricCard card panelShell" :class="item.tone">
+        <p>{{ item.label }}</p>
+        <h3>{{ item.value }}</h3>
+        <small>{{ item.hint }}</small>
+      </article>
+    </section>
   </section>
 </template>
 
 <style scoped>
+.dashboardPage {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboardHero {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.dashboardHero .sectionTitle {
+  margin: 14px 0 0;
+}
+
+.heroStats {
+  white-space: nowrap;
+}
+
 .dashboardGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -44,17 +71,33 @@ onMounted(async () => {
 }
 
 .metricCard {
-  padding: 20px;
+  padding: 22px;
+  display: grid;
+  gap: 10px;
 }
 
-.metricCard p {
+.metricCard p,
+.metricCard small {
   margin: 0;
   color: var(--text-soft);
 }
 
 .metricCard h3 {
-  margin: 12px 0 0;
-  font-size: 32px;
+  margin: 0;
+  font-size: clamp(30px, 3vw, 42px);
+  color: var(--text-title);
+}
+
+.metricCard.accent {
+  background: linear-gradient(180deg, rgba(246, 249, 252, 0.96) 0%, rgba(229, 236, 244, 0.86) 100%);
+}
+
+.metricCard.warm {
+  background: linear-gradient(180deg, rgba(252, 247, 240, 0.96) 0%, rgba(243, 231, 216, 0.82) 100%);
+}
+
+.metricCard.deep {
+  background: linear-gradient(180deg, rgba(242, 240, 236, 0.96) 0%, rgba(229, 226, 221, 0.86) 100%);
 }
 
 @media (max-width: 1024px) {
@@ -64,6 +107,12 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
+  .dashboardHero {
+    padding: 18px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .dashboardGrid {
     grid-template-columns: 1fr;
   }

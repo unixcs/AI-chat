@@ -58,10 +58,14 @@ const logout = () => {
 </script>
 
 <template>
-  <section class="adminShell pageWrap">
+  <section class="adminWorkspaceShell pageWrap">
     <div v-if="collapse" class="asideMask" @click="collapse = false"></div>
-    <aside class="adminAside" :class="{ collapse }">
+
+    <aside class="adminSidebar card" :class="['panelShell', { collapse }]">
+      <div class="adminSidebarGlow"></div>
+
       <div class="brandBar">
+        <span class="sectionLabel">Admin</span>
         <strong>管理系统</strong>
       </div>
 
@@ -79,19 +83,29 @@ const logout = () => {
         </section>
       </div>
 
-      <button class="themeRoundBtn" :title="currentTheme === 'dark' ? '切换浅色' : '切换深色'" @click="switchTheme">
-        <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
-        <span v-else class="themeIcon moon"></span>
-      </button>
-      <button class="logoutBtn" @click="logout">退出后台</button>
+      <div class="adminNavFooter">
+        <button
+          class="themeRoundBtn"
+          :title="currentTheme === 'dark' ? '切换浅色' : '切换深色'"
+          @click="switchTheme"
+        >
+          <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
+          <span v-else class="themeIcon moon"></span>
+        </button>
+        <button class="logoutBtn" @click="logout">退出后台</button>
+      </div>
     </aside>
 
     <main class="adminMain">
-      <header class="adminHeader card contentContainer">
+      <header class="adminTopbar card" :class="['contentContainer', 'panelShell']">
         <button class="ghostBtn" @click="toggleMenu">菜单</button>
-        <span>欢迎使用管理系统</span>
+        <div class="topbarText">
+          <strong>欢迎使用管理系统</strong>
+          <small class="mutedText">信息结构与权限逻辑保持原样，统一为更简约的现代雾感风格。</small>
+        </div>
       </header>
-      <section class="contentContainer pageSection">
+
+      <section class="contentContainer pageSection adminPageSection">
         <router-view />
       </section>
     </main>
@@ -99,182 +113,253 @@ const logout = () => {
 </template>
 
 <style scoped>
-.adminShell {
+.adminWorkspaceShell {
   display: grid;
-  grid-template-columns: 236px 1fr;
+  grid-template-columns: 292px 1fr;
   min-height: 100vh;
+  gap: 20px;
+  padding: 20px;
 }
 
-.adminAside {
-  background: var(--bg-admin);
-  color: #d1d5db;
-  padding: 16px;
+.adminSidebar {
+  position: sticky;
+  top: 20px;
+  height: calc(100dvh - 40px);
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  box-shadow: 4px 0 18px rgba(7, 15, 28, 0.2);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(251, 248, 244, 0.92) 0%, rgba(238, 233, 225, 0.88) 100%);
+}
+
+[data-theme='dark'] .adminSidebar {
+  background: linear-gradient(180deg, rgba(25, 30, 37, 0.96) 0%, rgba(18, 23, 29, 0.94) 100%);
+}
+
+.adminSidebarGlow {
+  position: absolute;
+  inset: -40px auto auto -20px;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(219, 209, 193, 0.48) 0%, transparent 72%);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .adminSidebarGlow {
+  background: radial-gradient(circle, rgba(116, 137, 164, 0.2) 0%, transparent 72%);
 }
 
 .brandBar {
-  font-size: 18px;
-  margin-bottom: 18px;
-  color: #fff;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.brandBar strong {
+  font-size: 28px;
+  color: var(--text-title);
+  line-height: 1.08;
 }
 
 .menuArea {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow: auto;
+  margin-top: 18px;
 }
 
 .menuGroup {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .menuGroup p {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-soft);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .menuGroup button {
   width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #e5e7eb;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.28);
+  color: var(--text-main);
   text-align: left;
-  padding: 9px 10px;
+  padding: 12px 14px;
   cursor: pointer;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+[data-theme='dark'] .menuGroup button {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.02);
+}
+
+.menuGroup button:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+[data-theme='dark'] .menuGroup button:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .menuGroup button.active {
-  background: rgba(47, 124, 246, 0.35);
+  background: rgba(95, 111, 133, 0.12);
+  border-color: rgba(95, 111, 133, 0.22);
+  box-shadow: var(--shadow-soft);
 }
 
 [data-theme='dark'] .menuGroup button.active {
-  background: rgba(94, 160, 255, 0.28);
+  background: rgba(163, 178, 198, 0.12);
+  border-color: rgba(163, 178, 198, 0.18);
+}
+
+.adminNavFooter {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 12px;
 }
 
 .logoutBtn {
-  margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  background: transparent;
-  color: #fff;
-  padding: 8px;
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.44);
+  color: var(--text-main);
   cursor: pointer;
 }
 
 .themeRoundBtn {
-  margin-top: auto;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
-  color: #e5e7eb;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.46);
+  color: var(--text-main);
   cursor: pointer;
-  font-size: 12px;
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+[data-theme='dark'] .themeRoundBtn,
+[data-theme='dark'] .logoutBtn {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .themeIcon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: inline-block;
 }
 
 .themeIcon.sun {
   border-radius: 50%;
-  background: #facc15;
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.28);
+  background: #f3c979;
+  box-shadow: 0 0 0 4px rgba(243, 201, 121, 0.2);
 }
 
 .themeIcon.moon {
   border-radius: 50%;
-  background: #bfdbfe;
+  background: #cad5e3;
   position: relative;
 }
 
 .themeIcon.moon::after {
   content: '';
   position: absolute;
-  right: -1px;
-  top: -1px;
-  width: 10px;
-  height: 10px;
+  right: -2px;
+  top: -2px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .adminMain {
-  padding: 14px;
+  min-width: 0;
 }
 
-.adminHeader {
+.adminTopbar {
   margin-bottom: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 11px 14px;
+  gap: 14px;
+  padding: 16px 18px;
 }
 
-.collapse {
-  width: 74px;
+.topbarText {
+  display: grid;
+  gap: 4px;
 }
 
-.collapse .menuGroup p,
-.collapse .menuGroup button,
-.collapse .logoutBtn,
-.collapse .brandBar {
-  overflow: hidden;
-  text-indent: -9999px;
-  position: relative;
+.topbarText strong {
+  color: var(--text-title);
+}
+
+.adminPageSection {
+  padding: 0;
 }
 
 @media (max-width: 960px) {
-  .adminShell {
+  .adminWorkspaceShell {
     grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
   }
 
   .asideMask {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.4);
+    background: var(--overlay-bg);
     z-index: 55;
   }
 
-  .adminAside {
+  .adminSidebar {
     position: fixed;
-    left: 0;
-    top: 0;
-    width: 236px;
-    height: 100vh;
-    transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    left: 14px;
+    top: 14px;
+    width: min(320px, calc(100vw - 28px));
+    height: calc(100dvh - 28px);
+    transform: translateX(calc(-100% - 18px));
+    transition: transform 0.22s ease;
     z-index: 60;
-    display: flex;
   }
 
-  .adminAside.collapse {
+  .adminSidebar.collapse {
     transform: translateX(0);
-    width: 236px;
+    width: min(320px, calc(100vw - 28px));
   }
 
-  .collapse .menuGroup p,
-  .collapse .menuGroup button,
-  .collapse .logoutBtn,
-  .collapse .brandBar {
-    overflow: visible;
-    text-indent: 0;
-    position: static;
+  .adminTopbar {
+    align-items: flex-start;
+    padding: 14px 16px;
+    flex-direction: column;
   }
 
-  .adminMain {
-    padding: 10px;
+  .topbarText {
+    width: 100%;
+  }
+
+  .topbarText strong,
+  .topbarText small {
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }
 </style>

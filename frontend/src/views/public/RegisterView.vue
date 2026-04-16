@@ -50,44 +50,51 @@ const submitRegister = async () => {
 </script>
 
 <template>
-  <section class="authPage pageWrap">
+  <section class="authShell pageWrap">
     <div class="authBackdrop"></div>
-    <div class="card authCard">
-      <p class="authSub">欢迎加入</p>
-      <h2 class="sectionTitle">注册账号</h2>
-      <div class="formItem">
-        <label>手机号</label>
-        <input v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
-      </div>
-      <div class="formItem">
-        <label>昵称</label>
-        <input v-model="formState.nickname" placeholder="请输入昵称" />
-      </div>
-      <div class="formItem">
-        <label>密码</label>
-        <input v-model="formState.password" type="password" placeholder="请输入密码" />
-      </div>
-      <div class="formItem">
-        <label>确认密码</label>
-        <input v-model="formState.confirmPassword" type="password" placeholder="请再次输入密码" />
-      </div>
-      <p v-if="errorText" class="dangerText">{{ errorText }}</p>
-      <button class="primaryBtn fullBtn" :disabled="loading" @click="submitRegister">
-        {{ loading ? '注册中...' : '注册' }}
-      </button>
-      <div class="authActions">
-        <router-link to="/login">已有账号？返回登录</router-link>
-      </div>
+
+    <div class="authGrid contentContainer">
+      <article class="authSurface card" :class="'panelShell'">
+        <p class="authSub">欢迎加入</p>
+        <h2 class="sectionTitle authTitle">注册账号</h2>
+
+        <div class="formItem">
+          <label>手机号</label>
+          <input v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
+        </div>
+        <div class="formItem">
+          <label>昵称</label>
+          <input v-model="formState.nickname" placeholder="请输入昵称" />
+        </div>
+        <div class="formItem">
+          <label>密码</label>
+          <input v-model="formState.password" type="password" placeholder="请输入密码" />
+        </div>
+        <div class="formItem">
+          <label>确认密码</label>
+          <input v-model="formState.confirmPassword" type="password" placeholder="请再次输入密码" />
+        </div>
+
+        <p v-if="errorText" class="dangerText authError">{{ errorText }}</p>
+
+        <button class="primaryBtn fullBtn" :disabled="loading" @click="submitRegister">
+          {{ loading ? '注册中...' : '注册' }}
+        </button>
+
+        <div class="authActions">
+          <router-link to="/login">已有账号？返回登录</router-link>
+        </div>
+      </article>
     </div>
   </section>
 </template>
 
 <style scoped>
-.authPage {
+.authShell {
   position: relative;
   display: grid;
   place-items: center;
-  padding: 30px 24px;
+  padding: 28px;
   overflow: hidden;
 }
 
@@ -95,9 +102,9 @@ const submitRegister = async () => {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(16, 24, 38, 0.46), rgba(23, 32, 51, 0.32)),
+    linear-gradient(135deg, rgba(31, 38, 48, 0.56), rgba(82, 91, 105, 0.34)),
     url('/assets/login-bg.png') center / cover no-repeat;
-  filter: blur(1px) saturate(1.08);
+  filter: blur(1px) saturate(0.88);
   transform: scale(1.03);
 }
 
@@ -105,17 +112,25 @@ const submitRegister = async () => {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(6px);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.26), transparent 30%),
+    rgba(19, 24, 31, 0.2);
+  backdrop-filter: blur(10px);
 }
 
-.authCard {
+.authGrid {
   position: relative;
   z-index: 1;
-  width: min(460px, 100%);
+  width: min(1220px, 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.authSurface {
   padding: 28px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 249, 253, 0.94) 100%);
-  backdrop-filter: blur(8px);
+  width: min(450px, 100%);
+  margin: 0 auto;
 }
 
 .authSub {
@@ -125,27 +140,42 @@ const submitRegister = async () => {
   text-align: center;
 }
 
+.authTitle {
+  text-align: center;
+}
+
+.authError {
+  margin: 0 0 12px;
+}
+
 .fullBtn {
   width: 100%;
 }
 
 .authActions {
-  margin-top: 14px;
+  margin-top: 16px;
   text-align: right;
 }
 
 .authActions a {
-  color: var(--bg-accent);
+  color: var(--accent-strong);
   font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .authGrid {
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
-  .authPage {
+  .authShell {
     padding: 14px;
   }
 
-  .authCard {
-    padding: 18px;
+  .authSurface {
+    padding: 20px;
   }
 }
 </style>

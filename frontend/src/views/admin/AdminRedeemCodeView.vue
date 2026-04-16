@@ -109,22 +109,20 @@ const formatTime = (time) => {
 
 <template>
   <section class="panelWrap">
-    <article class="card panel">
+    <article class="card panelShell panel generatorPanel">
+      <span class="sectionLabel">Generator</span>
       <h2 class="sectionTitle">生成兑换码</h2>
       <div class="formRow">
         <div class="formItem">
           <label>数量</label>
           <input v-model.number="formState.quantity" min="1" max="200" type="number" />
         </div>
-        <div class="formItem">
-          <label>有效月数</label>
-          <input v-model.number="formState.durationMonths" min="1" type="number" />
-        </div>
       </div>
       <button class="primaryBtn" @click="createBatchCodes">批量生成</button>
     </article>
 
-    <article class="card panel">
+    <article class="card panelShell panel listPanel">
+      <span class="sectionLabel">Redeem Codes</span>
       <h2 class="sectionTitle">兑换码列表</h2>
       <div class="toolbarRow">
         <input v-model="queryState.code" placeholder="按兑换码筛选" />
@@ -188,7 +186,12 @@ const formatTime = (time) => {
 }
 
 .panel {
-  padding: 16px;
+  padding: 20px;
+}
+
+.generatorPanel .sectionTitle,
+.listPanel .sectionTitle {
+  margin: 14px 0 18px;
 }
 
 .toolbarRow {
@@ -206,7 +209,14 @@ const formatTime = (time) => {
 }
 
 .tableWrap table {
-  min-width: 860px;
+  width: 100%;
+}
+
+.tableWrap :deep(th),
+.tableWrap :deep(td) {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .tableWrap .ghostBtn {
@@ -216,7 +226,7 @@ const formatTime = (time) => {
 
 .formRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -227,6 +237,12 @@ const formatTime = (time) => {
 
   .panel {
     padding: 12px;
+  }
+
+  .tableWrap :deep(th),
+  .tableWrap :deep(td) {
+    padding: 11px 10px;
+    font-size: 13px;
   }
 
   .formRow {

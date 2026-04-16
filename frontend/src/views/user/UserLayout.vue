@@ -15,8 +15,8 @@ const sidebarOpen = ref(false)
 const currentTheme = ref(getCurrentTheme())
 
 const menuItems = [
-  { key: 'chat', label: '对话', path: '/app/chat' },
-  { key: 'profile', label: '我的', path: '/app/profile' }
+  { key: 'chat', label: '对话', path: '/app/chat', desc: '沉浸式灵感交流' },
+  { key: 'profile', label: '我的', path: '/app/profile', desc: '资料与会员管理' }
 ]
 
 const activePath = computed(() => route.path)
@@ -28,9 +28,9 @@ const memberTag = computed(() => {
   }
   const isExpired = dayjs(profile.memberExpireAt).isBefore(dayjs())
   if (isExpired) {
-    return `已过期（${dayjs(profile.memberExpireAt).format('YYYY-MM-DD')}）`
+    return `已过期 · ${dayjs(profile.memberExpireAt).format('YYYY-MM-DD')}`
   }
-  return `到期：${dayjs(profile.memberExpireAt).format('YYYY-MM-DD HH:mm')}`
+  return `有效期至 ${dayjs(profile.memberExpireAt).format('YYYY-MM-DD HH:mm')}`
 })
 
 const jump = (path) => {
@@ -63,14 +63,18 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="userShell pageWrap">
-    <aside class="sidebar card" :class="{ open: sidebarOpen }">
+  <section class="userWorkspaceShell pageWrap">
+    <aside class="userSidebar card" :class="['panelShell', { open: sidebarOpen }]">
+      <div class="sidebarGlow"></div>
       <div class="sidebarHead">
-        <strong>{{ authStore.profile?.nickname || '用户' }}</strong>
-        <p class="mutedText">{{ memberTag }}</p>
+        <span class="sectionLabel">Workspace</span>
+        <div class="profileMeta">
+          <strong>{{ authStore.profile?.nickname || '用户' }}</strong>
+          <p class="mutedText">{{ memberTag }}</p>
+        </div>
       </div>
 
-      <nav>
+      <nav class="sidebarNav">
         <button
           v-for="item in menuItems"
           :key="item.key"
@@ -78,23 +82,34 @@ onMounted(async () => {
           :class="{ active: activePath === item.path }"
           @click="jump(item.path)"
         >
-          {{ item.label }}
+          <span class="menuBtnTitle">{{ item.label }}</span>
+          <small>{{ item.desc }}</small>
         </button>
       </nav>
 
-      <button class="themeRoundBtn" :title="currentTheme === 'dark' ? '切换浅色' : '切换深色'" @click="switchTheme">
-        <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
-        <span v-else class="themeIcon moon"></span>
-      </button>
-      <button class="ghostBtn logoutBtn" @click="logout">退出登录</button>
+      <div class="sidebarFooter">
+        <button
+          class="themeRoundBtn"
+          :title="currentTheme === 'dark' ? '切换浅色' : '切换深色'"
+          @click="switchTheme"
+        >
+          <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
+          <span v-else class="themeIcon moon"></span>
+        </button>
+        <button class="ghostBtn logoutBtn" @click="logout">退出登录</button>
+      </div>
     </aside>
 
-    <section class="mainArea contentContainer">
-      <header class="mobileBar card">
+    <section class="workspaceMain contentContainer">
+      <header class="mobileWorkspaceBar card" :class="'panelShell'">
         <button class="ghostBtn" @click="sidebarOpen = !sidebarOpen">菜单</button>
-        <span>{{ authStore.profile?.nickname || '用户' }}</span>
+        <div class="mobileBarMeta">
+          <strong>{{ authStore.profile?.nickname || '用户' }}</strong>
+          <small class="mutedText">{{ memberTag }}</small>
+        </div>
       </header>
-      <section class="viewArea">
+
+      <section class="workspaceView">
         <router-view />
       </section>
     </section>
@@ -104,195 +119,244 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.userShell {
+.userWorkspaceShell {
   display: grid;
-  grid-template-columns: 248px 1fr;
-  gap: 14px;
-  padding: 14px;
+  grid-template-columns: 310px 1fr;
+  gap: 22px;
+  padding: 22px;
   min-height: 100dvh;
 }
 
-.sidebar {
-  padding: 16px;
+.userSidebar {
   position: sticky;
-  top: 14px;
-  height: calc(100dvh - 28px);
+  top: 22px;
+  height: calc(100dvh - 44px);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-soft) 100%);
+  padding: 22px;
+  overflow: hidden;
+}
+
+.sidebarGlow {
+  position: absolute;
+  inset: auto auto -80px -40px;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(193, 201, 211, 0.42) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .sidebarHead {
-  border-bottom: 1px solid var(--border-main);
-  padding-bottom: 12px;
-  margin-bottom: 10px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 18px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
-.sidebarHead p {
-  margin: 6px 0 0;
-  font-size: 12px;
+.profileMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.profileMeta strong {
+  font-size: 28px;
+  color: var(--text-title);
+  line-height: 1.05;
+}
+
+.profileMeta p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.sidebarNav {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .menuBtn {
   width: 100%;
-  border: none;
-  background: transparent;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.3);
   text-align: left;
-  padding: 10px;
-  border-radius: 10px;
-  margin-bottom: 8px;
+  padding: 16px 18px;
+  border-radius: 20px;
   cursor: pointer;
+  display: grid;
+  gap: 6px;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+[data-theme='dark'] .menuBtn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.02);
+}
+
+.menuBtn small {
+  color: var(--text-soft);
+}
+
+.menuBtn:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.54);
+}
+
+[data-theme='dark'] .menuBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .menuBtn.active {
-  background: rgba(47, 124, 246, 0.14);
-  color: var(--bg-accent);
-  font-weight: 600;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.74) 0%, rgba(238, 235, 231, 0.86) 100%);
+  border-color: rgba(92, 102, 118, 0.18);
+  box-shadow: var(--shadow-soft);
+}
+
+[data-theme='dark'] .menuBtn.active {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(163, 178, 198, 0.12) 100%);
+  border-color: rgba(163, 178, 198, 0.16);
+}
+
+.menuBtnTitle {
+  font-size: 16px;
+  color: var(--text-title);
+  font-weight: 700;
+}
+
+.sidebarFooter {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 12px;
 }
 
 .logoutBtn {
-  margin-top: 10px;
+  width: 100%;
 }
 
 .themeRoundBtn {
-  margin-top: auto;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid var(--border-main);
-  background: var(--bg-panel);
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.46);
   color: var(--text-main);
   cursor: pointer;
-  font-size: 12px;
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+[data-theme='dark'] .themeRoundBtn {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .themeIcon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: inline-block;
 }
 
 .themeIcon.sun {
   border-radius: 50%;
-  background: #facc15;
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.28);
+  background: #f3c979;
+  box-shadow: 0 0 0 4px rgba(243, 201, 121, 0.2);
 }
 
 .themeIcon.moon {
   border-radius: 50%;
-  background: #bfdbfe;
+  background: #cad5e3;
   position: relative;
 }
 
 .themeIcon.moon::after {
   content: '';
   position: absolute;
-  right: -1px;
-  top: -1px;
-  width: 10px;
-  height: 10px;
+  right: -2px;
+  top: -2px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--bg-panel);
+  background: rgba(255, 255, 255, 0.8);
 }
 
-.mainArea {
+.workspaceMain {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-width: 0;
 }
 
-.viewArea {
+.workspaceView {
   flex: 1;
   min-height: 0;
   width: 100%;
 }
 
-.mobileBar {
+.mobileWorkspaceBar {
   display: none;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  margin-bottom: 12px;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.mobileBarMeta {
+  min-width: 0;
+  display: grid;
+  text-align: right;
+}
+
+.mobileBarMeta strong,
+.mobileBarMeta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 960px) {
-  .userShell {
+  .userWorkspaceShell {
     grid-template-columns: 1fr;
-    padding: 10px;
-    min-height: 100dvh;
+    gap: 14px;
+    padding: 14px;
   }
 
-  .sidebar {
+  .userSidebar {
     position: fixed;
-    left: -94px;
-    top: 10px;
+    left: 14px;
+    top: 14px;
+    width: min(320px, calc(100vw - 28px));
+    height: calc(100dvh - 28px);
+    transform: translateX(calc(-100% - 20px));
+    transition: transform 0.22s ease;
     z-index: 50;
-    width: 84px;
-    height: calc(100dvh - 20px);
-    padding: 10px 8px;
-    transition: left 0.2s ease;
   }
 
-  .sidebar.open {
-    left: 10px;
-  }
-
-  .sidebarHead {
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-  }
-
-  .sidebarHead strong {
-    display: block;
-    font-size: 12px;
-    line-height: 1.3;
-    word-break: break-all;
-  }
-
-  .sidebarHead p {
-    margin-top: 4px;
-    font-size: 10px;
-    line-height: 1.35;
-    word-break: break-all;
-  }
-
-  .menuBtn {
-    text-align: center;
-    padding: 8px 4px;
-    margin-bottom: 6px;
-    font-size: 12px;
-  }
-
-  .themeRoundBtn {
-    align-self: center;
-    width: 30px;
-    height: 30px;
-  }
-
-  .logoutBtn {
-    padding: 6px 4px;
-    font-size: 11px;
+  .userSidebar.open {
+    transform: translateX(0);
   }
 
   .sidebarMask {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.3);
+    background: var(--overlay-bg);
     z-index: 40;
   }
 
-  .mobileBar {
+  .mobileWorkspaceBar {
     display: flex;
-    flex: 0 0 auto;
-  }
-
-  .mainArea {
-    min-height: calc(100dvh - 20px);
   }
 }
 </style>

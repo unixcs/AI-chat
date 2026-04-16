@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { createConversation, getConversations, getMessages, sendMessage, streamMessage } from '../api/chat'
 import router from '../router'
+import { clearDraftSessionFlag, storeDraftSessionFlag } from '../utils/chat-entry'
 import { appendAssistantDelta, removeEmptyAssistantPlaceholder } from './chat-streaming'
 import { createDraftChatState, resolveConversationListState, shouldCreateConversationBeforeSending } from './chat-state'
 
@@ -27,6 +28,7 @@ export const useChatStore = defineStore('chat', {
       this.loading = false
       this.streaming = false
       this.streamSource = null
+      clearDraftSessionFlag()
       this.uiResetKey += 1
     },
     startDraftConversation() {
@@ -34,6 +36,7 @@ export const useChatStore = defineStore('chat', {
       this.activeConversationId = draftState.activeConversationId
       this.messagesMap = draftState.messagesMap
       this.isDraftConversation = draftState.isDraftConversation
+      storeDraftSessionFlag()
       this.uiResetKey += 1
     },
     async fetchConversations(options = {}) {
@@ -71,6 +74,7 @@ export const useChatStore = defineStore('chat', {
       this.activeConversationId = data.data.id
       this.messagesMap[data.data.id] = []
       this.isDraftConversation = false
+      clearDraftSessionFlag()
       return data.data.id
     },
     async addConversation() {
@@ -84,6 +88,7 @@ export const useChatStore = defineStore('chat', {
       this.messagesMap[conversationId] = data.data
       this.activeConversationId = conversationId
       this.isDraftConversation = false
+      clearDraftSessionFlag()
     },
     async postMessage(content) {
       if (shouldCreateConversationBeforeSending({

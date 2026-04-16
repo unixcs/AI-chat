@@ -50,7 +50,8 @@ const prevPage = async () => {
 </script>
 
 <template>
-  <section class="card panel">
+  <section class="card panelShell panel recordPanel">
+    <span class="sectionLabel">Records</span>
     <h2 class="sectionTitle">兑换记录</h2>
     <div class="toolbarRow">
       <input v-model="queryState.phone" placeholder="按手机号筛选" />
@@ -91,16 +92,33 @@ const prevPage = async () => {
 
 <style scoped>
 .panel {
-  padding: 16px;
+  padding: 20px;
+}
+
+.recordPanel .sectionTitle {
+  margin: 14px 0 18px;
 }
 
 .tableWrap table {
-  min-width: 860px;
+  width: 100%;
+}
+
+.tableWrap :deep(th),
+.tableWrap :deep(td) {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 980px) {
   .panel {
     padding: 12px;
+  }
+
+  .tableWrap :deep(th),
+  .tableWrap :deep(td) {
+    padding: 11px 10px;
+    font-size: 13px;
   }
 
   .toolbarRow {

@@ -1,17 +1,15 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
-import { consumeFreshChatFlag, shouldCreateFreshConversationOnEntry } from '../../utils/chat-entry'
+import { consumeFreshChatFlag, hasDraftSessionFlag, shouldStartFreshOnChatEntry } from '../../utils/chat-entry'
 import { renderMarkdownToSafeHtml } from '../../utils/markdown'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 const inputValue = ref('')
 const errorText = ref('')
-const showHistoryPanel = ref(false)
 const showHistoryDrawer = ref(false)
 const messageListRef = ref(null)
 
@@ -110,7 +108,10 @@ const onComposerKeydown = (event) => {
 }
 
 onMounted(async () => {
-  const startFresh = shouldCreateFreshConversationOnEntry(consumeFreshChatFlag())
+  const startFresh = shouldStartFreshOnChatEntry({
+    hasFreshChatFlag: consumeFreshChatFlag(),
+    hasDraftSession: hasDraftSessionFlag()
+  })
   await chatStore.fetchConversations({ startFresh })
 })
 
@@ -125,31 +126,36 @@ watch(
 </script>
 
 <template>
-  <section class="chatPage">
-    <section class="card chatPanel">
-      <div ref="messageListRef" class="messageList">
-        <div v-if="activeMessages.length === 0" class="emptyTips mutedText">
-          开始新的对话吧
+  <section class="chatStage">
+    <section class="chatPanel card panelShell">
+      <div ref="messageListRef" class="messageViewport">
+        <div v-if="activeMessages.length === 0" class="emptyState">
+          <h2>告诉我你有什么想法</h2>
+          <p class="emptyHint">开始新的对话吧</p>
         </div>
 
         <article
           v-for="msg in activeMessages"
           :key="msg.id"
-          class="msgRow"
+          class="messageRow"
           :class="msg.role === 'user' ? 'isUser' : 'isBot'"
         >
           <img
-            class="msgAvatar"
+            class="messageAvatar"
             :src="msg.role === 'user' ? '/assets/user-avatar.png' : '/assets/ai-avatar.png'"
             :alt="msg.role === 'user' ? '用户头像' : 'AI头像'"
           />
-          <div class="msgBody">
-            <div
-              v-if="msg.role === 'assistant'"
-              class="markdownBody"
-              v-html="renderAssistantContent(msg.content)"
-            />
-            <p v-else>{{ msg.content }}</p>
+
+          <div class="messageMeta">
+            <span class="messageRole">{{ msg.role === 'user' ? '你' : 'Thallo' }}</span>
+            <div class="messageBubble">
+              <div
+                v-if="msg.role === 'assistant'"
+                class="markdownBody"
+                v-html="renderAssistantContent(msg.content)"
+              />
+              <p v-else>{{ msg.content }}</p>
+            </div>
             <time>{{ formatTime(msg.createdAt) }}</time>
           </div>
         </article>
@@ -159,15 +165,16 @@ watch(
         </div>
       </div>
 
-      <div class="composer">
-        <div class="composerRow">
+      <div class="composerShell">
+        <div class="composerSurface">
           <textarea
             v-model="inputValue"
-            rows="2"
-            placeholder="请输入内容..."
+            rows="3"
+            placeholder="把你此刻最想问的内容写下来..."
             @keydown="onComposerKeydown"
           />
-          <div class="composerButtons">
+
+          <div class="composerActions">
             <button
               class="circleIconBtn historyIconBtn"
               title="历史对话"
@@ -204,19 +211,24 @@ watch(
             </button>
           </div>
         </div>
+
         <p v-if="errorText" class="dangerText composerError">{{ errorText }}</p>
       </div>
     </section>
 
     <div v-if="showHistoryDrawer" class="historyDrawerMask" @click.self="closeHistoryDrawer">
-      <aside class="historyDrawer card">
-        <div class="historyHead">
-          <h3>历史对话</h3>
+      <aside class="historyDrawerPanel card" :class="'panelShell'">
+        <div class="historyDrawerHead">
+          <div>
+            <span class="sectionLabel">History</span>
+            <h3>历史对话</h3>
+          </div>
           <div class="historyActions">
             <button class="ghostBtn" @click="closeHistoryDrawer">关闭</button>
             <button class="primaryBtn" @click="addConversation">新建</button>
           </div>
         </div>
+
         <button
           v-for="item in chatStore.list"
           :key="item.id"
@@ -233,11 +245,9 @@ watch(
 </template>
 
 <style scoped>
-.chatPage {
+.chatStage {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-  align-items: stretch;
+  height: calc(100dvh - 44px);
   min-height: 0;
   width: 100%;
 }
@@ -245,68 +255,101 @@ watch(
 .chatPanel {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 28px);
-  min-height: calc(100dvh - 28px);
-  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
 
-.messageList {
+.messageViewport {
   flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 14px;
+  padding: 26px;
   background: var(--chat-surface);
 }
 
-.emptyTips {
+.emptyState {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: center;
   text-align: center;
-  margin-top: 60px;
+  gap: 8px;
+  padding: 50px 24px;
+}
+
+.emptyState h2 {
+  margin: 0;
+  color: var(--text-title);
+  font-size: clamp(24px, 4vw, 36px);
 }
 
 .typingTips {
   text-align: center;
-  padding: 6px;
+  padding: 14px;
   font-size: 12px;
 }
 
-.msgRow {
+.messageRow {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 9px;
+  gap: 14px;
+  margin-bottom: 18px;
   width: 100%;
 }
 
-.msgAvatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
+.messageAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 16px;
   object-fit: cover;
   flex: 0 0 auto;
-  border: 1px solid rgba(148, 163, 184, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
-.msgBody {
+.messageMeta {
+  min-width: 0;
+  width: min(100%, 860px);
+  display: grid;
+  gap: 8px;
+}
+
+.messageRole {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+
+.messageBubble {
   min-width: 0;
   width: fit-content;
-  max-width: min(80%, 680px);
-  border-radius: 12px;
-  padding: 9px 11px;
+  max-width: min(82%, 760px);
+  border-radius: 24px;
+  padding: 16px 18px;
   border: 1px solid transparent;
   box-shadow: var(--shadow-soft);
 }
 
-.msgRow p {
+.messageRow p {
   margin: 0;
   white-space: pre-wrap;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.messageRow time {
+  display: block;
+  font-size: 12px;
+  color: var(--text-soft);
 }
 
 .markdownBody {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.72;
   color: var(--text-main);
   word-break: break-word;
 }
@@ -316,7 +359,7 @@ watch(
 .markdownBody :deep(ol),
 .markdownBody :deep(blockquote),
 .markdownBody :deep(pre) {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
 }
 
 .markdownBody :deep(*:last-child) {
@@ -339,8 +382,8 @@ watch(
 
 .markdownBody :deep(th),
 .markdownBody :deep(td) {
-  padding: 8px 10px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
   text-align: left;
   vertical-align: top;
   white-space: normal;
@@ -349,7 +392,7 @@ watch(
 }
 
 .markdownBody :deep(thead th) {
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(148, 163, 184, 0.08);
 }
 
 .markdownBody :deep(li + li) {
@@ -357,23 +400,23 @@ watch(
 }
 
 .markdownBody :deep(a) {
-  color: var(--bg-accent);
+  color: var(--accent-strong);
   text-decoration: underline;
 }
 
 .markdownBody :deep(code) {
   font-family: Consolas, 'Courier New', monospace;
   font-size: 13px;
-  background: rgba(15, 23, 42, 0.08);
-  padding: 1px 4px;
-  border-radius: 4px;
+  background: rgba(17, 24, 39, 0.08);
+  padding: 2px 6px;
+  border-radius: 8px;
 }
 
 .markdownBody :deep(pre) {
   overflow-x: auto;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.08);
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(17, 24, 39, 0.08);
 }
 
 .markdownBody :deep(pre code) {
@@ -384,14 +427,7 @@ watch(
 
 .markdownBody :deep(blockquote) {
   padding-left: 12px;
-  border-left: 3px solid rgba(47, 124, 246, 0.35);
-  color: var(--text-soft);
-}
-
-.msgRow time {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
+  border-left: 3px solid rgba(95, 111, 133, 0.35);
   color: var(--text-soft);
 }
 
@@ -400,96 +436,123 @@ watch(
   flex-direction: row-reverse;
 }
 
-.isBot {
-  justify-content: flex-start;
+.isUser .messageMeta {
+  justify-items: end;
 }
 
-.isUser .msgBody {
+.isUser .messageBubble {
   background: var(--chat-user-bg);
   border-color: var(--chat-user-border);
+  color: #f8fafc;
 }
 
-.isBot .msgBody {
+.isUser .messageBubble p,
+.isUser .messageBubble :deep(*) {
+  color: inherit;
+}
+
+.isBot .messageBubble {
   background: var(--chat-bot-bg);
   border-color: var(--chat-bot-border);
 }
 
-.composer {
-  border-top: 1px solid var(--border-main);
-  padding: 10px;
-  background: var(--bg-panel);
+.composerShell {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line-soft);
+  padding: 18px 20px 20px;
+  background: var(--surface-base);
 }
 
-.composerRow {
+.composerSurface {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 26px;
+  padding: 14px 14px 14px 18px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
-.composer textarea {
+[data-theme='dark'] .composerSurface {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.composerSurface textarea {
   resize: none;
-  min-height: 48px;
+  min-height: 68px;
   width: 100%;
   flex: 1 1 auto;
-  background: var(--bg-panel);
+  background: transparent;
   color: var(--text-main);
-  border: 1px solid var(--border-main);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 14px;
-  line-height: 1.4;
+  border: none;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
-.composerButtons {
+.composerSurface textarea:focus {
+  outline: none;
+}
+
+.composerActions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
 .circleIconBtn {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  border: 1px solid var(--border-main);
-  background: var(--bg-panel);
+  width: 46px;
+  height: 46px;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.6);
   color: var(--text-main);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.18s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+[data-theme='dark'] .circleIconBtn {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .circleIconBtn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
 }
 
 .circleIconBtn:hover {
   transform: translateY(-1px);
-  border-color: #b8c6de;
-  background: var(--bg-soft);
+  border-color: rgba(100, 111, 125, 0.3);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+[data-theme='dark'] .circleIconBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sendIconBtn {
-  border-color: var(--bg-accent);
-  background: var(--bg-accent);
-  color: var(--text-white);
-  box-shadow: 0 6px 14px rgba(47, 124, 246, 0.28);
+  border-color: transparent;
+  background: linear-gradient(135deg, #5e6d81 0%, #4b596d 100%);
+  color: #f7f6f2;
+  box-shadow: 0 16px 26px rgba(86, 98, 116, 0.24);
 }
 
 .sendIconBtn:hover {
-  background: var(--bg-accent-dark);
-  border-color: var(--bg-accent-dark);
+  background: linear-gradient(135deg, #4f5d71 0%, #424f61 100%);
 }
 
 .sendIconBtn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .historyIconBtn {
@@ -498,12 +561,12 @@ watch(
 
 .stopIconBtn {
   color: var(--danger);
-  border-color: #fecaca;
-  background: #fff5f5;
+  background: rgba(198, 93, 75, 0.08);
+  border-color: rgba(198, 93, 75, 0.16);
 }
 
 .composerError {
-  margin: 6px 0 0;
+  margin: 10px 2px 0;
   font-size: 12px;
 }
 
@@ -516,19 +579,26 @@ watch(
   z-index: 90;
 }
 
-.historyDrawer {
-  width: min(320px, 92vw);
+.historyDrawerPanel {
+  width: min(360px, 94vw);
   height: 100dvh;
-  padding: 16px;
+  padding: 24px 20px;
   border-radius: 0;
   overflow: auto;
 }
 
-.historyHead {
+.historyDrawerHead {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.historyDrawerHead h3 {
+  margin: 12px 0 0;
+  font-size: 24px;
+  color: var(--text-title);
 }
 
 .historyActions {
@@ -536,28 +606,34 @@ watch(
   gap: 8px;
 }
 
-.historyHead h3 {
-  margin: 0;
-}
-
 .historyItem {
   width: 100%;
-  border: 1px solid var(--border-main);
-  border-radius: 12px;
-  background: var(--bg-panel);
-  margin-bottom: 8px;
-  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.42);
+  margin-bottom: 10px;
+  padding: 15px 16px;
   text-align: left;
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+[data-theme='dark'] .historyItem {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .historyItem:hover {
-  border-color: #c4d2eb;
-  background: var(--bg-soft);
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme='dark'] .historyItem:hover {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .historyItem small {
@@ -565,61 +641,66 @@ watch(
 }
 
 .historyItem.active {
-  border-color: var(--bg-accent);
-  background: rgba(47, 124, 246, 0.1);
+  border-color: rgba(95, 111, 133, 0.3);
+  background: rgba(95, 111, 133, 0.12);
+  box-shadow: var(--shadow-soft);
 }
 
 @media (max-width: 960px) {
-  .chatPage {
-    grid-template-columns: 1fr;
-    min-height: 0;
-    width: 100%;
+  .chatStage {
+    height: calc(100dvh - 84px);
   }
 
   .chatPanel {
-    height: calc(100dvh - 84px);
-    min-height: calc(100dvh - 84px);
-    width: 100%;
+    height: 100%;
   }
 
-  .composerRow {
+  .messageViewport {
+    padding: 18px 14px;
+  }
+
+  .messageRow {
+    gap: 10px;
+  }
+
+  .messageAvatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 14px;
+  }
+
+  .messageBubble {
+    max-width: 100%;
+    border-radius: 20px;
+    padding: 14px 15px;
+  }
+
+  .composerSurface {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    padding: 14px;
   }
 
-  .composerButtons {
+  .composerActions {
     justify-content: flex-end;
-    margin-left: 0;
-    margin-top: 0;
-    gap: 6px;
+    gap: 10px;
   }
 
   .circleIconBtn {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 42px;
+    height: 42px;
+    border-radius: 16px;
   }
 
-  .circleIconBtn svg {
-    width: 14px;
-    height: 14px;
+  .historyDrawerPanel {
+    width: 100%;
+    padding: 18px 14px;
   }
 
-  .msgRow {
-    gap: 6px;
-  }
-
-  .msgBody {
-    max-width: 92%;
-  }
-
-  .messageList {
-    padding: 10px;
-  }
-
-  .composer {
-    padding: 8px;
+  .historyDrawerHead,
+  .historyActions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

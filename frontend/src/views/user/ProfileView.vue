@@ -52,8 +52,10 @@ const submitRedeem = async () => {
 
 <template>
   <section class="profilePage">
-    <article class="card panel">
+    <article class="card panelShell profilePanel">
+      <span class="sectionLabel">Profile</span>
       <h2 class="sectionTitle">个人中心</h2>
+
       <div class="formItem">
         <label>昵称</label>
         <input v-model="profileForm.nickname" placeholder="请输入昵称" />
@@ -65,15 +67,17 @@ const submitRedeem = async () => {
       <button class="primaryBtn" @click="saveProfile">保存资料</button>
     </article>
 
-    <article class="card panel">
+    <article class="card panelShell profilePanel accentPanel">
+      <span class="sectionLabel">Membership</span>
       <h2 class="sectionTitle">卡密充值</h2>
+
       <div class="formItem">
         <label>兑换码</label>
         <input v-model="redeemForm.code" placeholder="请输入兑换码" />
       </div>
       <button class="primaryBtn" @click="submitRedeem">立即兑换</button>
       <p v-if="noticeText" class="mutedText successText">{{ noticeText }}</p>
-      <p v-if="errorText" class="dangerText">{{ errorText }}</p>
+      <p v-if="errorText" class="dangerText feedbackText">{{ errorText }}</p>
     </article>
   </section>
 </template>
@@ -82,15 +86,32 @@ const submitRedeem = async () => {
 .profilePage {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
-.panel {
-  padding: 18px;
+.profilePanel {
+  padding: 24px;
+}
+
+.profilePanel .sectionTitle {
+  margin: 14px 0 22px;
+}
+
+.accentPanel {
+  background: linear-gradient(180deg, rgba(255, 251, 247, 0.92) 0%, rgba(243, 238, 231, 0.8) 100%);
+}
+
+[data-theme='dark'] .accentPanel {
+  background: linear-gradient(180deg, rgba(39, 45, 54, 0.92) 0%, rgba(29, 34, 41, 0.9) 100%);
 }
 
 .successText {
+  margin-top: 14px;
   color: var(--success);
+}
+
+.feedbackText {
+  margin-top: 8px;
 }
 
 @media (max-width: 960px) {

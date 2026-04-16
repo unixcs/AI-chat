@@ -40,9 +40,11 @@ const submitAdminPassword = async () => {
 </script>
 
 <template>
-  <section class="rolePanelWrap">
-    <article class="card panel roleTablePanel">
+  <section class="rolePanelWrap" :class="'rolePage'">
+    <article class="roleTablePanel card panelShell">
+      <span class="sectionLabel">Roles</span>
       <h2 class="sectionTitle">角色管理</h2>
+
       <div class="tableWrap">
         <table>
           <thead>
@@ -61,7 +63,8 @@ const submitAdminPassword = async () => {
       </div>
     </article>
 
-    <article class="card panel passwordPanel">
+    <article class="passwordPanel card panelShell">
+      <span class="sectionLabel">Security</span>
       <h2 class="sectionTitle">管理员密码</h2>
       <div class="formItem">
         <label>新密码</label>
@@ -79,20 +82,21 @@ const submitAdminPassword = async () => {
 </template>
 
 <style scoped>
+.rolePage,
 .rolePanelWrap {
   display: grid;
   grid-template-columns: 1fr 360px;
-  gap: 12px;
+  gap: 14px;
 }
 
-.panel {
-  padding: 16px;
+.roleTablePanel,
+.passwordPanel {
+  padding: 20px;
 }
 
-table td,
-table th {
-  padding-top: 10px;
-  padding-bottom: 10px;
+.roleTablePanel .sectionTitle,
+.passwordPanel .sectionTitle {
+  margin: 14px 0 20px;
 }
 
 .successText {
@@ -100,6 +104,7 @@ table th {
 }
 
 @media (max-width: 980px) {
+  .rolePage,
   .rolePanelWrap {
     grid-template-columns: 1fr;
   }
