@@ -15,8 +15,8 @@ const sidebarOpen = ref(false)
 const currentTheme = ref(getCurrentTheme())
 
 const menuItems = [
-  { key: 'chat', label: '对话', path: '/app/chat', desc: '沉浸式灵感交流' },
-  { key: 'profile', label: '我的', path: '/app/profile', desc: '资料与会员管理' }
+  { key: 'chat', label: '对话', path: '/app/chat' },
+  { key: 'profile', label: '我的', path: '/app/profile' }
 ]
 
 const activePath = computed(() => route.path)
@@ -83,7 +83,6 @@ onMounted(async () => {
           @click="jump(item.path)"
         >
           <span class="menuBtnTitle">{{ item.label }}</span>
-          <small>{{ item.desc }}</small>
         </button>
       </nav>
 
@@ -96,7 +95,7 @@ onMounted(async () => {
           <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
           <span v-else class="themeIcon moon"></span>
         </button>
-        <button class="ghostBtn logoutBtn" @click="logout">退出登录</button>
+        <button class="ghostBtn logoutBtn" @click="logout">退出<br />登录</button>
       </div>
     </aside>
 
@@ -188,18 +187,12 @@ onMounted(async () => {
   padding: 16px 18px;
   border-radius: 20px;
   cursor: pointer;
-  display: grid;
-  gap: 6px;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 [data-theme='dark'] .menuBtn {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.02);
-}
-
-.menuBtn small {
-  color: var(--text-soft);
 }
 
 .menuBtn:hover {
@@ -337,11 +330,49 @@ onMounted(async () => {
     position: fixed;
     left: 14px;
     top: 14px;
-    width: min(320px, calc(100vw - 28px));
+    width: clamp(96px, 33.333vw, 140px);
     height: calc(100dvh - 28px);
     transform: translateX(calc(-100% - 20px));
     transition: transform 0.22s ease;
     z-index: 50;
+  }
+
+  .sidebarHead {
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+
+  .profileMeta {
+    gap: 6px;
+  }
+
+  .profileMeta strong {
+    font-size: 20px;
+  }
+
+  .profileMeta p {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .sidebarNav {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .menuBtn {
+    padding: 12px 10px;
+    border-radius: 16px;
+  }
+
+  .menuBtnTitle {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .sidebarFooter {
+    gap: 10px;
+    padding-top: 16px;
   }
 
   .userSidebar.open {

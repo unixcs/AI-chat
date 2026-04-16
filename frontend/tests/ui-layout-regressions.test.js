@@ -41,6 +41,28 @@ test('chat page keeps the composer pinned by using a full-height shell and scrol
   assert.match(vue, /\.composerShell\s*\{[\s\S]*flex:\s*0 0 auto;/)
 })
 
+test('user mobile sidebar is capped to roughly one third of the screen width', () => {
+  const vue = readProjectFile('src/views/user/UserLayout.vue')
+
+  assert.match(vue, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.userSidebar\s*\{[\s\S]*width:\s*clamp\(96px,\s*33\.333vw,\s*140px\);/)
+  assert.doesNotMatch(vue, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.userSidebar\s*\{[\s\S]*width:\s*min\(320px,\s*calc\(100vw - 28px\)\);/)
+})
+
+test('user mobile sidebar menu removes descriptions and uses compact typography', () => {
+  const vue = readProjectFile('src/views/user/UserLayout.vue')
+
+  assert.doesNotMatch(vue, /<small>\{\{ item\.desc \}\}<\/small>/)
+  assert.match(vue, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.sidebarNav\s*\{[\s\S]*gap:\s*8px;/)
+  assert.match(vue, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.menuBtn\s*\{[\s\S]*padding:\s*12px 10px;[\s\S]*border-radius:\s*16px;/)
+  assert.match(vue, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.menuBtnTitle\s*\{[\s\S]*font-size:\s*14px;/)
+})
+
+test('user sidebar logout button splits its label across two lines', () => {
+  const vue = readProjectFile('src/views/user/UserLayout.vue')
+
+  assert.match(vue, /<button class="ghostBtn logoutBtn" @click="logout">\s*退出<br ?\/?>登录\s*<\/button>/)
+})
+
 test('admin data tables avoid oversized fixed minimum widths on mobile-critical pages', () => {
   const userVue = readProjectFile('src/views/admin/AdminUserView.vue')
   const redeemCodeVue = readProjectFile('src/views/admin/AdminRedeemCodeView.vue')
