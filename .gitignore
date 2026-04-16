@@ -24,3 +24,7 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# OpenCode local project config
+AGENTS.md
+opencode.json

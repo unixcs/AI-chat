@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import { createConversation, getConversations, getMessages, sendMessage, streamMessage } from '../api/chat'
 import router from '../router'
 import { appendAssistantDelta, removeEmptyAssistantPlaceholder } from './chat-streaming'
+import { createDraftChatState, resolveConversationListState, shouldCreateConversationBeforeSending } from './chat-state'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
     list: [],
     activeConversationId: null,
     messagesMap: {},
+    isDraftConversation: true,
     loading: false,
     streaming: false,
     streamSource: null,
@@ -21,37 +23,58 @@ export const useChatStore = defineStore('chat', {
       this.list = []
       this.activeConversationId = null
       this.messagesMap = {}
+      this.isDraftConversation = true
       this.loading = false
       this.streaming = false
       this.streamSource = null
       this.uiResetKey += 1
     },
-    async fetchConversations() {
+    startDraftConversation() {
+      const draftState = createDraftChatState()
+      this.activeConversationId = draftState.activeConversationId
+      this.messagesMap = draftState.messagesMap
+      this.isDraftConversation = draftState.isDraftConversation
+      this.uiResetKey += 1
+    },
+    async fetchConversations(options = {}) {
       this.loading = true
       try {
         const { data } = await getConversations()
         this.list = data.data
-        if (this.list.length === 0) {
-          this.activeConversationId = null
-          this.messagesMap = {}
+        const nextState = resolveConversationListState({
+          list: this.list,
+          activeConversationId: this.activeConversationId,
+          messagesMap: this.messagesMap,
+          startFresh: Boolean(options.startFresh)
+        })
+        this.activeConversationId = nextState.activeConversationId
+        this.messagesMap = nextState.messagesMap
+        this.isDraftConversation = nextState.isDraftConversation
+        if (!this.activeConversationId) {
           return
         }
-
-        const currentStillExists = this.list.some((item) => item.id === this.activeConversationId)
-        if (!currentStillExists) {
-          this.activeConversationId = this.list[0].id
-        }
-
         await this.fetchMessages(this.activeConversationId)
       } finally {
         this.loading = false
       }
     },
-    async addConversation() {
+    async ensureActiveConversation() {
+      if (!shouldCreateConversationBeforeSending({
+        activeConversationId: this.activeConversationId,
+        isDraftConversation: this.isDraftConversation
+      })) {
+        return this.activeConversationId
+      }
+
       const { data } = await createConversation()
       this.list.unshift(data.data)
       this.activeConversationId = data.data.id
       this.messagesMap[data.data.id] = []
+      this.isDraftConversation = false
+      return data.data.id
+    },
+    async addConversation() {
+      this.startDraftConversation()
     },
     async fetchMessages(conversationId) {
       if (!conversationId) {
@@ -60,10 +83,14 @@ export const useChatStore = defineStore('chat', {
       const { data } = await getMessages(conversationId)
       this.messagesMap[conversationId] = data.data
       this.activeConversationId = conversationId
+      this.isDraftConversation = false
     },
     async postMessage(content) {
-      if (!this.activeConversationId) {
-        await this.addConversation()
+      if (shouldCreateConversationBeforeSending({
+        activeConversationId: this.activeConversationId,
+        isDraftConversation: this.isDraftConversation
+      })) {
+        await this.ensureActiveConversation()
       }
 
       const conversationId = this.activeConversationId
@@ -82,8 +109,11 @@ export const useChatStore = defineStore('chat', {
       this.messagesMap[conversationId].push(data.data)
     },
     async postStreamMessage(content) {
-      if (!this.activeConversationId) {
-        await this.addConversation()
+      if (shouldCreateConversationBeforeSending({
+        activeConversationId: this.activeConversationId,
+        isDraftConversation: this.isDraftConversation
+      })) {
+        await this.ensureActiveConversation()
       }
 
       const conversationId = this.activeConversationId

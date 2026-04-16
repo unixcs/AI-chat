@@ -4,6 +4,8 @@ import { watch } from 'vue'
 import dayjs from 'dayjs'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
+import { consumeFreshChatFlag, shouldCreateFreshConversationOnEntry } from '../../utils/chat-entry'
+import { renderMarkdownToSafeHtml } from '../../utils/markdown'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -31,6 +33,10 @@ const canChat = computed(() => {
 
 const formatTime = (time) => {
   return dayjs(time).format('MM-DD HH:mm')
+}
+
+const renderAssistantContent = (content) => {
+  return renderMarkdownToSafeHtml(content)
 }
 
 const selectConversation = async (conversationId) => {
@@ -104,7 +110,8 @@ const onComposerKeydown = (event) => {
 }
 
 onMounted(async () => {
-  await chatStore.fetchConversations()
+  const startFresh = shouldCreateFreshConversationOnEntry(consumeFreshChatFlag())
+  await chatStore.fetchConversations({ startFresh })
 })
 
 watch(
@@ -137,7 +144,12 @@ watch(
             :alt="msg.role === 'user' ? '用户头像' : 'AI头像'"
           />
           <div class="msgBody">
-            <p>{{ msg.content }}</p>
+            <div
+              v-if="msg.role === 'assistant'"
+              class="markdownBody"
+              v-html="renderAssistantContent(msg.content)"
+            />
+            <p v-else>{{ msg.content }}</p>
             <time>{{ formatTime(msg.createdAt) }}</time>
           </div>
         </article>
@@ -262,12 +274,8 @@ watch(
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  max-width: 80%;
-  border-radius: 12px;
-  padding: 9px 11px;
   margin-bottom: 9px;
-  border: 1px solid transparent;
-  box-shadow: var(--shadow-soft);
+  width: 100%;
 }
 
 .msgAvatar {
@@ -281,6 +289,12 @@ watch(
 
 .msgBody {
   min-width: 0;
+  width: fit-content;
+  max-width: min(80%, 680px);
+  border-radius: 12px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-soft);
 }
 
 .msgRow p {
@@ -288,6 +302,90 @@ watch(
   white-space: pre-wrap;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.markdownBody {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.markdownBody :deep(p),
+.markdownBody :deep(ul),
+.markdownBody :deep(ol),
+.markdownBody :deep(blockquote),
+.markdownBody :deep(pre) {
+  margin: 0 0 10px;
+}
+
+.markdownBody :deep(*:last-child) {
+  margin-bottom: 0;
+}
+
+.markdownBody :deep(ul),
+.markdownBody :deep(ol) {
+  padding-left: 20px;
+}
+
+.markdownBody :deep(table) {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdownBody :deep(th),
+.markdownBody :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.markdownBody :deep(thead th) {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.markdownBody :deep(li + li) {
+  margin-top: 4px;
+}
+
+.markdownBody :deep(a) {
+  color: var(--bg-accent);
+  text-decoration: underline;
+}
+
+.markdownBody :deep(code) {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.markdownBody :deep(pre) {
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.markdownBody :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdownBody :deep(blockquote) {
+  padding-left: 12px;
+  border-left: 3px solid rgba(47, 124, 246, 0.35);
+  color: var(--text-soft);
 }
 
 .msgRow time {
@@ -298,14 +396,20 @@ watch(
 }
 
 .isUser {
-  margin-left: auto;
-  background: var(--chat-user-bg);
-  border-color: var(--chat-user-border);
+  justify-content: flex-start;
   flex-direction: row-reverse;
 }
 
 .isBot {
-  margin-right: auto;
+  justify-content: flex-start;
+}
+
+.isUser .msgBody {
+  background: var(--chat-user-bg);
+  border-color: var(--chat-user-border);
+}
+
+.isBot .msgBody {
   background: var(--chat-bot-bg);
   border-color: var(--chat-bot-border);
 }
@@ -503,6 +607,10 @@ watch(
   }
 
   .msgRow {
+    gap: 6px;
+  }
+
+  .msgBody {
     max-width: 92%;
   }
 

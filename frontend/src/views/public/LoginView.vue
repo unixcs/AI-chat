@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { loginUser, getUserProfile } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import { storeFreshChatFlag } from '../../utils/chat-entry'
 import { applyTheme } from '../../utils/theme'
 
 const authStore = useAuthStore()
@@ -30,6 +31,7 @@ const submitLogin = async () => {
     chatStore.resetChatState()
     const { data } = await loginUser(formState)
     authStore.setUserToken(data.data.token)
+    storeFreshChatFlag()
     applyTheme('light')
     const profileResp = await getUserProfile()
     authStore.setProfile(profileResp.data.data)

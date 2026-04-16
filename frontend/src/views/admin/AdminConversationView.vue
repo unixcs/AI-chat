@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { getAdminConversationMessages, getAdminConversationsByQuery } from '../../api/admin'
+import { renderMarkdownToSafeHtml } from '../../utils/markdown'
 
 const conversations = ref([])
 const detailMessages = ref([])
@@ -41,6 +42,10 @@ const loadDetail = async (conversationId) => {
 
 const formatTime = (time) => {
   return dayjs(time).format('YYYY-MM-DD HH:mm')
+}
+
+const renderAssistantContent = (content) => {
+  return renderMarkdownToSafeHtml(content)
 }
 
 const nextPage = async () => {
@@ -99,7 +104,12 @@ const prevPage = async () => {
             <strong>{{ msg.role }}</strong>
             <span class="mutedText">{{ formatTime(msg.createdAt) }}</span>
           </header>
-          <p>{{ msg.content }}</p>
+          <div
+            v-if="msg.role === 'assistant'"
+            class="markdownBody"
+            v-html="renderAssistantContent(msg.content)"
+          />
+          <p v-else>{{ msg.content }}</p>
         </article>
       </div>
     </article>
@@ -193,6 +203,88 @@ const prevPage = async () => {
 .msgRow p {
   margin: 0;
   white-space: pre-wrap;
+}
+
+.markdownBody {
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.markdownBody :deep(p),
+.markdownBody :deep(ul),
+.markdownBody :deep(ol),
+.markdownBody :deep(blockquote),
+.markdownBody :deep(pre) {
+  margin: 0 0 10px;
+}
+
+.markdownBody :deep(*:last-child) {
+  margin-bottom: 0;
+}
+
+.markdownBody :deep(ul),
+.markdownBody :deep(ol) {
+  padding-left: 20px;
+}
+
+.markdownBody :deep(table) {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdownBody :deep(th),
+.markdownBody :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.markdownBody :deep(thead th) {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.markdownBody :deep(li + li) {
+  margin-top: 4px;
+}
+
+.markdownBody :deep(a) {
+  color: var(--bg-accent);
+  text-decoration: underline;
+}
+
+.markdownBody :deep(code) {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.markdownBody :deep(pre) {
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.markdownBody :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdownBody :deep(blockquote) {
+  padding-left: 12px;
+  border-left: 3px solid rgba(47, 124, 246, 0.35);
+  color: var(--text-soft);
 }
 
 @media (max-width: 980px) {
