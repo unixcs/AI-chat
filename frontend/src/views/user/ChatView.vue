@@ -12,6 +12,7 @@ const inputValue = ref('')
 const errorText = ref('')
 const showHistoryDrawer = ref(false)
 const messageListRef = ref(null)
+const composerTextareaRef = ref(null)
 
 const activeMessages = computed(() => {
   const id = chatStore.activeConversationId
@@ -66,6 +67,21 @@ const scrollToBottom = async () => {
   el.scrollTop = el.scrollHeight
 }
 
+const syncComposerHeight = async () => {
+  await nextTick()
+  const el = composerTextareaRef.value
+  if (!el) {
+    return
+  }
+
+  const isMobileViewport = window.matchMedia('(max-width: 960px)').matches
+  const mobileMaxHeight = 96
+
+  el.style.height = 'auto'
+  const nextHeight = isMobileViewport ? Math.min(el.scrollHeight, mobileMaxHeight) : el.scrollHeight
+  el.style.height = `${nextHeight}px`
+}
+
 const submitMessage = async () => {
   errorText.value = ''
   const content = inputValue.value.trim()
@@ -84,6 +100,7 @@ const submitMessage = async () => {
   }
 
   inputValue.value = ''
+  await syncComposerHeight()
   try {
     const streamPromise = chatStore.postStreamMessage(content)
     await scrollToBottom()
@@ -121,8 +138,17 @@ watch(
     inputValue.value = ''
     errorText.value = ''
     closeHistoryDrawer()
+    syncComposerHeight()
   }
 )
+
+watch(inputValue, () => {
+  syncComposerHeight()
+})
+
+onMounted(async () => {
+  await syncComposerHeight()
+})
 </script>
 
 <template>
@@ -168,8 +194,9 @@ watch(
       <div class="composerShell">
         <div class="composerSurface">
           <textarea
+            ref="composerTextareaRef"
             v-model="inputValue"
-            rows="3"
+            rows="1"
             placeholder="把你此刻最想问的内容写下来..."
             @keydown="onComposerKeydown"
           />
@@ -183,9 +210,10 @@ watch(
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M4 6a2 2 0 0 1 2-2h3v2H6v12h12v-3h2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm8-2h8v8h-2V7.41l-5.3 5.3-1.4-1.42L16.58 6H12V4z"
+                  d="M5 5.75A1.75 1.75 0 0 1 6.75 4h10.5A1.75 1.75 0 0 1 19 5.75v12.5A1.75 1.75 0 0 1 17.25 20H6.75A1.75 1.75 0 0 1 5 18.25V5.75zm2.5.75v2h9v-2h-9zm0 4v2h9v-2h-9zm0 4v2h6v-2h-6z"
                 />
               </svg>
+              <span class="historyBtnLabel">历史</span>
             </button>
             <button
               class="circleIconBtn sendIconBtn"
@@ -490,6 +518,7 @@ watch(
   padding: 0;
   font-size: 15px;
   line-height: 1.7;
+  overflow-y: auto;
 }
 
 .composerSurface textarea:focus {
@@ -557,6 +586,10 @@ watch(
 
 .historyIconBtn {
   color: var(--text-soft);
+}
+
+.historyBtnLabel {
+  display: none;
 }
 
 .stopIconBtn {
@@ -678,18 +711,52 @@ watch(
   .composerSurface {
     flex-direction: column;
     align-items: stretch;
-    padding: 14px;
+    gap: 10px;
+    border-radius: 22px;
+    padding: 10px 10px 10px 12px;
+  }
+
+  .composerShell {
+    padding: 10px 12px 12px;
+  }
+
+  .composerSurface textarea {
+    min-height: 22px;
+    max-height: 96px;
+    font-size: 14px;
+    line-height: 1.4;
+    -webkit-overflow-scrolling: touch;
   }
 
   .composerActions {
     justify-content: flex-end;
-    gap: 10px;
+    align-items: center;
+    gap: 6px;
   }
 
   .circleIconBtn {
-    width: 42px;
-    height: 42px;
-    border-radius: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+
+  .circleIconBtn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .historyIconBtn {
+    width: auto;
+    min-width: 34px;
+    padding: 0 10px;
+    gap: 4px;
+  }
+
+  .historyBtnLabel {
+    display: inline;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
   }
 
   .historyDrawerPanel {

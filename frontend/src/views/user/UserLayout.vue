@@ -95,7 +95,7 @@ onMounted(async () => {
           <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
           <span v-else class="themeIcon moon"></span>
         </button>
-        <button class="ghostBtn logoutBtn" @click="logout">退出<br />登录</button>
+        <button class="ghostBtn logoutBtn" @click="logout">退出登录</button>
       </div>
     </aside>
 
@@ -151,6 +151,7 @@ onMounted(async () => {
   z-index: 1;
   display: grid;
   gap: 18px;
+  justify-items: center;
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line-soft);
 }
@@ -158,6 +159,8 @@ onMounted(async () => {
 .profileMeta {
   display: grid;
   gap: 8px;
+  justify-items: center;
+  text-align: center;
 }
 
 .profileMeta strong {
@@ -183,7 +186,7 @@ onMounted(async () => {
   width: 100%;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.3);
-  text-align: left;
+  text-align: center;
   padding: 16px 18px;
   border-radius: 20px;
   cursor: pointer;
@@ -230,6 +233,7 @@ onMounted(async () => {
   border-top: 1px solid var(--line-soft);
   display: grid;
   gap: 12px;
+  justify-items: center;
 }
 
 .logoutBtn {
@@ -330,7 +334,7 @@ onMounted(async () => {
     position: fixed;
     left: 14px;
     top: 14px;
-    width: clamp(96px, 33.333vw, 140px);
+    width: clamp(116px, 38vw, 168px);
     height: calc(100dvh - 28px);
     transform: translateX(calc(-100% - 20px));
     transition: transform 0.22s ease;
@@ -373,6 +377,14 @@ onMounted(async () => {
   .sidebarFooter {
     gap: 10px;
     padding-top: 16px;
+  }
+
+  .logoutBtn {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .userSidebar.open {
