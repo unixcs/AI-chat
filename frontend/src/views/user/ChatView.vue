@@ -471,7 +471,7 @@ onMounted(async () => {
 .isUser .messageBubble {
   background: var(--chat-user-bg);
   border-color: var(--chat-user-border);
-  color: #f8fafc;
+  color: var(--chat-user-text);
 }
 
 .isUser .messageBubble p,
@@ -479,9 +479,41 @@ onMounted(async () => {
   color: inherit;
 }
 
+.isUser .messageBubble::selection,
+.isUser .messageBubble p::selection,
+.isUser .messageBubble span::selection,
+.isUser .messageBubble strong::selection,
+.isUser .messageBubble em::selection,
+.isUser .messageBubble b::selection,
+.isUser .messageBubble i::selection,
+.isUser .messageBubble code::selection,
+.isUser .messageBubble a::selection,
+.isUser .messageBubble :deep(*)::selection {
+  background: var(--chat-user-selection-bg);
+  color: var(--chat-user-selection-text);
+}
+
 .isBot .messageBubble {
   background: var(--chat-bot-bg);
   border-color: var(--chat-bot-border);
+}
+
+.isBot .messageBubble::selection,
+.isBot .messageBubble p::selection,
+.isBot .messageBubble span::selection,
+.isBot .messageBubble strong::selection,
+.isBot .messageBubble em::selection,
+.isBot .messageBubble b::selection,
+.isBot .messageBubble i::selection,
+.isBot .messageBubble code::selection,
+.isBot .messageBubble a::selection,
+.isBot .messageBubble li::selection,
+.isBot .messageBubble blockquote::selection,
+.isBot .messageBubble th::selection,
+.isBot .messageBubble td::selection,
+.isBot .messageBubble :deep(*)::selection {
+  background: var(--chat-bot-selection-bg);
+  color: var(--chat-bot-selection-text);
 }
 
 .composerShell {
@@ -519,6 +551,11 @@ onMounted(async () => {
   font-size: 15px;
   line-height: 1.7;
   overflow-y: auto;
+}
+
+.composerSurface textarea::selection {
+  background: var(--chat-input-selection-bg);
+  color: var(--chat-input-selection-text);
 }
 
 .composerSurface textarea:focus {
