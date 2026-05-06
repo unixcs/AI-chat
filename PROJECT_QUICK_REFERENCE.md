@@ -66,8 +66,8 @@ Required environment file:
 Important variables:
 ```env
 DEEPSEEK_API_KEY=
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 DEEPSEEK_SYSTEM_PROMPT_FILE=

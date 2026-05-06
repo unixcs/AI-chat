@@ -98,8 +98,8 @@ cd AI-chat
 
 ```env
 DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 
 # 可选：并发与队列
 MODEL_CONCURRENCY=6
@@ -191,8 +191,8 @@ npm install --production
 ```bash
 cat > /var/www/demo/backend/.env << 'EOF'
 DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 EOF
@@ -319,8 +319,8 @@ cd AI-chat
 ```bash
 cat > backend/.env << 'EOF'
 DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 EOF

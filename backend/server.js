@@ -14,8 +14,8 @@ dotenv.config()
 const app = express()
 const port = 3001
 const deepseekApiKey = process.env.DEEPSEEK_API_KEY || ''
-const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
-const deepseekBaseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1'
+const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
+const deepseekBaseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
 const deepseekPromptFile = process.env.DEEPSEEK_SYSTEM_PROMPT_FILE || ''
 const deepseekSystemPrompt = (() => {
   if (!deepseekPromptFile) {
