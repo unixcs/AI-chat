@@ -65,6 +65,8 @@ Required environment file:
 
 Important variables:
 ```env
+SQLITE_PATH=
+ALLOW_JSON_SEED=
 DEEPSEEK_API_KEY=
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -72,6 +74,14 @@ MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 DEEPSEEK_SYSTEM_PROMPT_FILE=
 ```
+
+Initialization notes:
+- If `SQLITE_PATH` is unset, backend defaults to `backend/data.sqlite`
+- Empty-database startup creates minimal system data by default
+- Default admin username: `admin`
+- Default admin password: `admin123`
+- `ALLOW_JSON_SEED=true` is for local development only and allows importing `backend/data.json`
+- Production and Docker deployments should leave `ALLOW_JSON_SEED` unset
 
 ### Frontend
 Working directory: `frontend/`
@@ -101,15 +111,21 @@ demo/
 ├─ README.md
 ├─ PROJECT_QUICK_REFERENCE.md
 ├─ restart-backend.bat
+├─ docker-compose.yml
 ├─ backend/
 │  ├─ server.js
 │  ├─ db.js
 │  ├─ auth.js
+│  ├─ Dockerfile
+│  ├─ .dockerignore
 │  ├─ package.json
 │  ├─ prompts/
 │  │  └─ Prompt.md
-│  └─ data.sqlite
+│  ├─ data.sqlite              # default local DB when SQLITE_PATH is unset
+│  └─ data.json                # optional local-development JSON seed source
 └─ frontend/
+   ├─ Dockerfile
+   ├─ nginx.default.conf
    ├─ package.json
    ├─ vite.config.js
    ├─ src/
@@ -217,12 +233,20 @@ Files to inspect:
 
 ## Database Notes
 
-Database file:
-- `backend/data.sqlite`
+Database path resolution:
+- `process.env.SQLITE_PATH` when set
+- otherwise `backend/data.sqlite`
+
+Seed initialization rules:
+- Empty-database startup creates minimal system data by default
+- Minimal system data includes only admin user, roles, and menus
+- Default admin credentials are `admin` / `admin123`
+- Demo users, redeem codes, conversations, and messages are not auto-created
+- `ALLOW_JSON_SEED=true` only works for local development and only on first empty-database startup
+- Production and Docker deployments should not rely on `backend/data.json`
 
 SQLite WAL side files may appear during runtime:
-- `backend/data.sqlite-wal`
-- `backend/data.sqlite-shm`
+- same directory as the active SQLite database file
 
 Current schema includes at least these tables:
 - `users`
@@ -284,26 +308,20 @@ Responsibilities:
 There is a matching test file:
 - `frontend/tests/chat-streaming.test.js`
 
-## Current Worktree Situation
+## Deployment Notes
 
-At the time this note was written, the repository was not clean.
+### Non-Docker production
+- Recommended database path example: `/var/lib/ai-chat/data.sqlite`
+- Backend should run with `NODE_ENV=production`
+- First empty-database startup creates minimal system data
 
-Observed modified files:
-- `backend/data.sqlite-shm`
-- `backend/data.sqlite-wal`
-- `backend/prompts/Prompt.md`
-- `frontend/src/stores/chat.js`
+### Docker production
+- Container path is fixed via `SQLITE_PATH=/app/data/data.sqlite`
+- Host data directory is mounted to `/app/data`
+- Docker images do not rely on `backend/data.json`
+- `.dockerignore` is required because `.gitignore` does not affect Docker build context
 
-Observed untracked files:
-- `frontend/package-lock.json`
-- `frontend/src/stores/chat-streaming.js`
-- `frontend/tests/`
-
-Interpretation:
-- There is in-progress work around frontend streaming behavior and tests
-- SQLite WAL files are runtime artifacts, not necessarily meaningful source edits
-
-Before making changes next time, run:
+Before making changes, check the current worktree with:
 ```bash
 git status --short --branch
 ```
@@ -339,14 +357,14 @@ git status --short --branch
 
 ### Investigate database or seed data issues
 1. `backend/db.js`
-2. `backend/data.sqlite`
+2. current `SQLITE_PATH` target or `backend/data.sqlite`
 3. any related endpoint in `backend/server.js`
 
 ## Notable Risks And Caveats
 
 ### Hard-coded credentials and secrets
 - `backend/auth.js` contains a hard-coded JWT secret: `demo_secret_key_2026`
-- `backend/db.js` seed data contains default user/admin credentials
+- `backend/db.js` seed data contains default admin credentials: `admin` / `admin123`
 
 These are acceptable for local demo work but unsafe for production.
 

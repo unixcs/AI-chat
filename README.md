@@ -65,14 +65,19 @@ demo/
 ├─ frontend/                 # Vue 前端
 │  ├─ src/
 │  ├─ package.json
+│  ├─ Dockerfile
+│  ├─ nginx.default.conf
 │  └─ vite.config.js
 ├─ backend/                  # Express 后端
 │  ├─ server.js
 │  ├─ db.js
 │  ├─ auth.js
-│  ├─ data.sqlite            # SQLite 数据文件（运行后生成/使用）
-│  ├─ data.json              # 初始种子数据来源（首次初始化时可导入）
+│  ├─ data.sqlite            # 默认开发 SQLite 数据文件（未设置 SQLITE_PATH 时使用）
+│  ├─ data.json              # 本地开发可选的 JSON 种子数据
+│  ├─ Dockerfile
+│  ├─ .dockerignore
 │  └─ package.json
+├─ docker-compose.yml
 └─ README.md
 ```
 
@@ -83,20 +88,34 @@ demo/
 - Git
 - 可选：Docker `>= 24`，Docker Compose `>= 2.20`
 
-## 5. 本地开发启动
+## 5. 数据与初始化策略
 
-### 5.1 克隆项目
+- 应用优先读取环境变量 `SQLITE_PATH`
+- 未设置 `SQLITE_PATH` 时，默认回退到 `backend/data.sqlite`
+- 生产和 Docker 部署建议显式指定独立数据目录，例如 `/var/lib/ai-chat/data.sqlite` 或 `/app/data/data.sqlite`
+- 空库首次启动时，默认自动创建最小系统数据：管理员、角色、后台菜单
+- 默认管理员账号：`admin`
+- 默认管理员密码：`admin123`
+- 首次启动不会自动创建演示普通用户、演示兑换码、演示会话消息
+- `ALLOW_JSON_SEED=true` 仅用于本地开发，允许在空库首次启动时导入 `backend/data.json`
+- 生产和 Docker 部署请保持 `ALLOW_JSON_SEED` 未设置
+
+## 6. 本地开发启动
+
+### 6.1 克隆项目
 
 ```bash
 git clone https://github.com/unixcs/AI-chat
 cd AI-chat
 ```
 
-### 5.2 配置后端环境变量
+### 6.2 配置后端环境变量
 
 在 `backend/.env` 写入：
 
 ```env
+SQLITE_PATH=
+ALLOW_JSON_SEED=
 DEEPSEEK_API_KEY=你的_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -106,7 +125,12 @@ MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 ```
 
-### 5.3 启动后端
+说明：
+- `SQLITE_PATH` 留空即可使用默认本地数据库 `backend/data.sqlite`
+- 如需从 `backend/data.json` 初始化本地空库，可设置 `ALLOW_JSON_SEED=true`
+- 已有数据库存在时，不会重复执行初始化导入
+
+### 6.3 启动后端
 
 ```bash
 cd backend
@@ -116,7 +140,7 @@ npm run dev
 
 后端默认地址：`http://localhost:3001`
 
-### 5.4 启动前端
+### 6.4 启动前端
 
 ```bash
 cd ../frontend
@@ -128,7 +152,7 @@ npm run dev
 
 说明：前端开发代理已配置 `/api -> http://localhost:3001`（见 `frontend/vite.config.js`）。
 
-## 6. 默认账号与隐私说明
+## 7. 默认账号与隐私说明
 
 ### 用户端
 - 默认测试账号信息已隐藏（隐私保护）
@@ -136,18 +160,20 @@ npm run dev
 
 ### 管理端
 - 地址：`/admin/login`
-- 管理员初始账号信息已隐藏（生产环境请首次登录后立即修改）
+- 默认初始化管理员账号：`admin`
+- 默认初始化管理员密码：`admin123`
+- 生产环境请首次登录后立即修改管理员密码
 
-## 7. GitHub 拉取与更新流程
+## 8. GitHub 拉取与更新流程
 
-### 7.1 首次拉取
+### 8.1 首次拉取
 
 ```bash
 git clone https://github.com/unixcs/AI-chat
 cd AI-chat
 ```
 
-### 7.2 后续更新
+### 8.2 后续更新
 
 ```bash
 git pull origin main
@@ -155,11 +181,11 @@ git pull origin main
 
 如果你的默认分支不是 `main`，请改成对应分支名（如 `master`）。
 
-## 8. 云服务器部署（非 Docker，推荐生产）
+## 9. 云服务器部署（非 Docker，推荐生产）
 
 以下示例基于 Ubuntu 22.04。
 
-### 8.1 安装基础环境
+### 9.1 安装基础环境
 
 ```bash
 sudo apt update
@@ -170,7 +196,7 @@ node -v
 npm -v
 ```
 
-### 8.2 拉取项目
+### 9.2 拉取项目
 
 ```bash
 cd /var/www
@@ -179,7 +205,7 @@ sudo chown -R $USER:$USER /var/www/demo
 cd /var/www/demo
 ```
 
-### 8.3 部署后端
+### 9.3 部署后端
 
 ```bash
 cd /var/www/demo/backend
@@ -190,6 +216,8 @@ npm install --production
 
 ```bash
 cat > /var/www/demo/backend/.env << 'EOF'
+SQLITE_PATH=/var/lib/ai-chat/data.sqlite
+ALLOW_JSON_SEED=
 DEEPSEEK_API_KEY=你的_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -197,6 +225,21 @@ MODEL_CONCURRENCY=6
 MODEL_QUEUE_MAX=50
 EOF
 ```
+
+首次切换到独立数据目录前，请先创建目录并迁移原数据库文件：
+
+```bash
+sudo mkdir -p /var/lib/ai-chat
+sudo cp /var/www/demo/backend/data.sqlite* /var/lib/ai-chat/
+sudo chown -R $USER:$USER /var/lib/ai-chat
+```
+
+如果是新服务器首次部署且数据目录为空，后端会自动初始化最小系统数据：
+- 管理员账号：`admin`
+- 管理员密码：`admin123`
+- 角色与后台菜单
+- 不自动创建演示普通用户、演示兑换码、演示会话消息
+- 生产环境请首次登录后立即修改管理员密码
 
 创建 systemd 服务 `/etc/systemd/system/demo-backend.service`：
 
@@ -226,7 +269,7 @@ sudo systemctl start demo-backend
 sudo systemctl status demo-backend
 ```
 
-### 8.4 部署前端静态资源
+### 9.4 部署前端静态资源
 
 ```bash
 cd /var/www/demo/frontend
@@ -236,7 +279,7 @@ npm run build
 
 构建产物在：`/var/www/demo/frontend/dist`
 
-### 8.5 配置 Nginx
+### 9.5 配置 Nginx
 
 创建 `/etc/nginx/sites-available/demo.conf`：
 
@@ -272,7 +315,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 8.6 放行防火墙（如启用了 UFW）
+### 9.6 放行防火墙（如启用了 UFW）
 
 ```bash
 sudo ufw allow OpenSSH
@@ -281,11 +324,11 @@ sudo ufw enable
 sudo ufw status
 ```
 
-## 9. Docker 部署（完整命令与文件）
+## 10. Docker 部署
 
 下面给出完整容器化方案（前端 + 后端 + Nginx 反代）。
 
-### 9.1 服务器安装 Docker
+### 10.1 服务器安装 Docker
 
 ```bash
 sudo apt update
@@ -307,17 +350,21 @@ docker --version
 docker compose version
 ```
 
-### 9.2 克隆项目并进入目录
+### 10.2 克隆项目并进入目录
 
 ```bash
 git clone https://github.com/unixcs/AI-chat
 cd AI-chat
 ```
 
-### 9.3 创建后端环境变量
+### 10.3 创建后端环境变量
+
+说明：`backend/.env` 仅用于容器运行时注入环境变量；`.gitignore` 不会阻止它进入 Docker build context，因此需要配合 `backend/.dockerignore` 一起使用。
 
 ```bash
 cat > backend/.env << 'EOF'
+SQLITE_PATH=/app/data/data.sqlite
+ALLOW_JSON_SEED=
 DEEPSEEK_API_KEY=你的_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -326,18 +373,38 @@ MODEL_QUEUE_MAX=50
 EOF
 ```
 
-### 9.4 新建 Docker 文件
+### 10.4 使用仓库内置 Docker 文件
 
 #### `backend/Dockerfile`
 
 ```dockerfile
 FROM node:22-alpine
+
 WORKDIR /app
+
 COPY package*.json ./
 RUN npm install --production
-COPY . .
+
+COPY server.js ./
+COPY db.js ./
+COPY auth.js ./
+COPY admin-member-expire.js ./
+COPY prompts ./prompts
+
 EXPOSE 3001
 CMD ["node", "server.js"]
+```
+
+#### `backend/.dockerignore`
+
+```dockerignore
+.env
+node_modules
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+backend-dev.log
 ```
 
 #### `frontend/Dockerfile`
@@ -355,6 +422,14 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.default.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
+```
+
+#### `frontend/.dockerignore`
+
+```dockerignore
+node_modules
+dist
+*.log
 ```
 
 #### `frontend/nginx.default.conf`
@@ -397,8 +472,10 @@ services:
       - ./backend/.env
     ports:
       - "3001:3001"
+    environment:
+      SQLITE_PATH: /app/data/data.sqlite
     volumes:
-      - ./backend/data.sqlite:/app/data.sqlite
+      - /srv/ai-chat/data:/app/data
 
   frontend:
     build:
@@ -411,36 +488,54 @@ services:
       - "80:80"
 ```
 
-### 9.5 一键构建启动
+### 10.5 一键构建启动
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-### 9.6 查看日志
+说明：
+- 容器内固定使用 `SQLITE_PATH=/app/data/data.sqlite`
+- 宿主机只需要挂载数据目录 `/srv/ai-chat/data`
+- 目录挂载会同时保留 `data.sqlite`、`data.sqlite-wal`、`data.sqlite-shm`
+- `.gitignore` 不会影响 Docker 构建上下文，敏感文件和运行时数据依赖 `.dockerignore` 排除
+- Docker 部署默认不依赖 `data.json`，首次空库启动只创建最小系统数据
+- `ALLOW_JSON_SEED` 仅用于本地开发，不作为 Docker 首次部署的常规初始化方式
+- 首次登录后请立即修改默认管理员密码
+
+如果你之前已经在项目目录内使用过 `backend/data.sqlite`，迁移到 Docker 数据目录时可执行：
+
+```bash
+sudo mkdir -p /srv/ai-chat/data
+cp backend/data.sqlite* /srv/ai-chat/data/
+docker compose up -d --build
+```
+
+### 10.6 查看日志
 
 ```bash
 docker compose logs -f backend
 docker compose logs -f frontend
 ```
 
-### 9.7 停止与重启
+### 10.7 停止与重启
 
 ```bash
 docker compose down
 docker compose up -d
 ```
 
-## 10. 常见问题排查
+## 11. 常见问题排查
 
 - 后端启动失败：确认 Node 版本是否 `>= 22`（`node -v`）
 - AI 无响应：检查 `DEEPSEEK_API_KEY` 是否有效、余额是否充足
 - 前端显示后端未启动：确认 `3001` 端口可访问，或检查 Nginx `/api` 反代
 - Docker 下 SSE 不流式：确认反代关闭缓冲（`proxy_buffering off`）
-- 数据保护：请定期备份 `backend/data.sqlite`
+- 首次部署后无法登录管理员：确认当前数据目录是否为空，以及是否已使用默认管理员 `admin / admin123` 完成首登
+- 数据保护：请定期备份当前 `SQLITE_PATH` 指向的数据库文件及其同目录的 `-wal`、`-shm` 文件
 
-## 11. 安全建议（生产必做）
+## 12. 安全建议（生产必做）
 
 - 修改默认管理员账号密码
 - 使用 HTTPS（Nginx + Certbot）
@@ -448,6 +543,6 @@ docker compose up -d
 - 使用云厂商安全组仅开放 `80/443`
 - 增加日志轮转与监控告警
 
-## 12. License
+## 13. License
 
 仅供学习与原型演示使用。

@@ -11,9 +11,9 @@ frontend/dist-ssr/
 backend/.env
 
 # runtime data and logs
-backend/data.sqlite
-backend/data.sqlite-shm
-backend/data.sqlite-wal
+backend/*.sqlite
+backend/*.sqlite-shm
+backend/*.sqlite-wal
 backend/backend-dev.log
 backend/*.log
 backend/nul

@@ -4,7 +4,21 @@ const bcrypt = require('bcryptjs')
 const { DatabaseSync } = require('node:sqlite')
 
 const jsonPath = path.join(__dirname, 'data.json')
-const sqlitePath = path.join(__dirname, 'data.sqlite')
+const isProduction = process.env.NODE_ENV === 'production'
+const allowJsonSeed = (process.env.ALLOW_JSON_SEED || '').trim().toLowerCase() === 'true'
+const sqlitePath = (() => {
+  const configuredPath = (process.env.SQLITE_PATH || '').trim()
+  if (!configuredPath) {
+    return path.join(__dirname, 'data.sqlite')
+  }
+
+  return path.isAbsolute(configuredPath)
+    ? configuredPath
+    : path.join(__dirname, configuredPath)
+})()
+
+fs.mkdirSync(path.dirname(sqlitePath), { recursive: true })
+
 const sqliteDb = new DatabaseSync(sqlitePath)
 
 sqliteDb.exec('PRAGMA journal_mode = WAL;')
@@ -33,20 +47,6 @@ const createDefaultData = () => {
     users: [
       {
         id: newId(),
-        phone: '15555166986',
-        nickname: 'demo用户',
-        passwordHash: bcrypt.hashSync('simple1270.', 10),
-        avatarUrl: '',
-        status: 'active',
-        role: 'user',
-        currentSessionId: null,
-        sessionUpdatedAt: null,
-        memberExpireAt: addMonths(now, 1),
-        createdAt: now,
-        lastLoginAt: now
-      },
-      {
-        id: newId(),
         phone: '10000000000',
         nickname: '系统管理员',
         passwordHash: bcrypt.hashSync('admin123', 10),
@@ -73,17 +73,7 @@ const createDefaultData = () => {
       { id: newId(), name: '兑换记录', path: '/admin/redeem-records', group: '业务管理' },
       { id: newId(), name: '会话管理', path: '/admin/conversations', group: '业务管理' }
     ],
-    redeemCodes: [
-      {
-        id: newId(),
-        code: 'VIP-2026-DEMO-0001',
-        durationMonths: 1,
-        status: 'unused',
-        createdAt: now,
-        usedAt: null,
-        usedByUserId: null
-      }
-    ],
+    redeemCodes: [],
     redeemRecords: [],
     conversations: [],
     messages: []
@@ -291,7 +281,7 @@ const ensureSeedData = () => {
   }
 
   let initData = null
-  if (fs.existsSync(jsonPath)) {
+  if (!isProduction && allowJsonSeed && fs.existsSync(jsonPath)) {
     try {
       initData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
     } catch (error) {

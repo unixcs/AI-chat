@@ -5,11 +5,12 @@ const cors = require('cors')
 const bcrypt = require('bcryptjs')
 const dayjs = require('dayjs')
 const dotenv = require('dotenv')
+
+dotenv.config()
+
 const { readDb, writeDb, newId, getNow, addMonths } = require('./db')
 const { signToken, userAuth, adminAuth, verifyToken, validateUserSession } = require('./auth')
 const { normalizeAdminMemberExpireAtInput } = require('./admin-member-expire')
-
-dotenv.config()
 
 const app = express()
 const port = 3001
