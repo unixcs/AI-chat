@@ -466,7 +466,7 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: demo-backend
+    container_name: ai-chat-backend
     restart: always
     env_file:
       - ./backend/.env
@@ -480,7 +480,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: demo-frontend
+    container_name: ai-chat-frontend
     restart: always
     depends_on:
       - backend
