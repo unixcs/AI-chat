@@ -107,7 +107,7 @@ Vite proxy:
 ## Top-Level Structure
 
 ```text
-demo/
+ai-chat/
 ├─ README.md
 ├─ PROJECT_QUICK_REFERENCE.md
 ├─ restart-backend.bat

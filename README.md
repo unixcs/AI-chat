@@ -61,7 +61,7 @@
 ## 3. 项目结构
 
 ```text
-demo/
+ai-chat/
 ├─ frontend/                 # Vue 前端
 │  ├─ src/
 │  ├─ package.json
@@ -200,22 +200,22 @@ npm -v
 
 ```bash
 cd /var/www
-sudo git clone https://github.com/unixcs/AI-chat demo
-sudo chown -R $USER:$USER /var/www/demo
-cd /var/www/demo
+sudo git clone https://github.com/unixcs/AI-chat ai-chat
+sudo chown -R $USER:$USER /var/www/ai-chat
+cd /var/www/ai-chat
 ```
 
 ### 9.3 部署后端
 
 ```bash
-cd /var/www/demo/backend
+cd /var/www/ai-chat/backend
 npm install --production
 ```
 
 创建环境变量文件：
 
 ```bash
-cat > /var/www/demo/backend/.env << 'EOF'
+cat > /var/www/ai-chat/backend/.env << 'EOF'
 SQLITE_PATH=/var/lib/ai-chat/data.sqlite
 ALLOW_JSON_SEED=
 DEEPSEEK_API_KEY=你的_deepseek_api_key
@@ -230,7 +230,7 @@ EOF
 
 ```bash
 sudo mkdir -p /var/lib/ai-chat
-sudo cp /var/www/demo/backend/data.sqlite* /var/lib/ai-chat/
+sudo cp /var/www/ai-chat/backend/data.sqlite* /var/lib/ai-chat/
 sudo chown -R $USER:$USER /var/lib/ai-chat
 ```
 
@@ -241,17 +241,17 @@ sudo chown -R $USER:$USER /var/lib/ai-chat
 - 不自动创建演示普通用户、演示兑换码、演示会话消息
 - 生产环境请首次登录后立即修改管理员密码
 
-创建 systemd 服务 `/etc/systemd/system/demo-backend.service`：
+创建 systemd 服务 `/etc/systemd/system/ai-chat-backend.service`：
 
 ```ini
 [Unit]
-Description=Demo Backend Service
+Description=AI Chat Backend Service
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/var/www/demo/backend
-ExecStart=/usr/bin/node /var/www/demo/backend/server.js
+WorkingDirectory=/var/www/ai-chat/backend
+ExecStart=/usr/bin/node /var/www/ai-chat/backend/server.js
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -264,31 +264,31 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable demo-backend
-sudo systemctl start demo-backend
-sudo systemctl status demo-backend
+sudo systemctl enable ai-chat-backend
+sudo systemctl start ai-chat-backend
+sudo systemctl status ai-chat-backend
 ```
 
 ### 9.4 部署前端静态资源
 
 ```bash
-cd /var/www/demo/frontend
+cd /var/www/ai-chat/frontend
 npm install
 npm run build
 ```
 
-构建产物在：`/var/www/demo/frontend/dist`
+构建产物在：`/var/www/ai-chat/frontend/dist`
 
 ### 9.5 配置 Nginx
 
-创建 `/etc/nginx/sites-available/demo.conf`：
+创建 `/etc/nginx/sites-available/ai-chat.conf`：
 
 ```nginx
 server {
   listen 80;
   server_name _; # 改成你的域名，例如 ai.example.com
 
-  root /var/www/demo/frontend/dist;
+  root /var/www/ai-chat/frontend/dist;
   index index.html;
 
   location / {
@@ -310,7 +310,7 @@ server {
 启用站点并重载：
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/demo.conf /etc/nginx/sites-enabled/demo.conf
+sudo ln -s /etc/nginx/sites-available/ai-chat.conf /etc/nginx/sites-enabled/ai-chat.conf
 sudo nginx -t
 sudo systemctl reload nginx
 ```
