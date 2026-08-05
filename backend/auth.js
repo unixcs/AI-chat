@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken')
-const { readDb } = require('./db')
+const { getUserById } = require('./db')
 
-const jwtSecret = 'demo_secret_key_2026'
+const FALLBACK_JWT_SECRET = 'demo_secret_key_2026'
+const jwtSecret = process.env.JWT_SECRET || FALLBACK_JWT_SECRET
+if (!process.env.JWT_SECRET) {
+  console.warn('[auth] JWT_SECRET 未设置,正在使用内置默认密钥(不安全,生产环境必须在 .env 中配置)')
+}
 
 const signToken = (payload, expiresIn = '7d') => {
   return jwt.sign(payload, jwtSecret, { expiresIn })
@@ -19,10 +23,9 @@ const parseBearerToken = (authHeader = '') => {
 }
 
 const validateUserSession = (payload) => {
-  const db = readDb()
-  const user = db.users.find((item) => item.id === payload.userId && item.role === 'user')
+  const user = getUserById(payload.userId)
 
-  if (!user) {
+  if (!user || user.role !== 'user') {
     return { ok: false, status: 401, code: 'USER_INVALID', message: '用户不存在或已失效' }
   }
 

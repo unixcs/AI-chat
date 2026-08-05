@@ -23,6 +23,7 @@ const sqliteDb = new DatabaseSync(sqlitePath)
 
 sqliteDb.exec('PRAGMA journal_mode = WAL;')
 sqliteDb.exec('PRAGMA foreign_keys = OFF;')
+sqliteDb.exec('PRAGMA busy_timeout = 5000;')
 
 const newId = () => {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -146,10 +147,14 @@ const initSchema = () => {
       content TEXT,
       createdAt TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId);
+    CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(userId);
+    CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
   `)
 }
 
-const insertAll = (data) => {
+const insertAll = (data, { includeMessages = true } = {}) => {
   const insertUser = sqliteDb.prepare(`
     INSERT INTO users (
       id, phone, nickname, passwordHash, avatarUrl, status, role,
@@ -172,7 +177,7 @@ const insertAll = (data) => {
     INSERT INTO conversations (id, userId, title, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?)
   `)
-  const insertMessage = sqliteDb.prepare(`
+  const insertMessageRow = sqliteDb.prepare(`
     INSERT INTO messages (id, conversationId, role, content, createdAt)
     VALUES (?, ?, ?, ?, ?)
   `)
@@ -237,8 +242,12 @@ const insertAll = (data) => {
     )
   }
 
+  if (!includeMessages) {
+    return
+  }
+
   for (const item of data.messages || []) {
-    insertMessage.run(
+    insertMessageRow.run(
       item.id,
       item.conversationId || null,
       item.role || 'assistant',
@@ -248,7 +257,7 @@ const insertAll = (data) => {
   }
 }
 
-const clearAll = () => {
+const clearAll = ({ includeMessages = true } = {}) => {
   sqliteDb.exec(`
     DELETE FROM users;
     DELETE FROM roles;
@@ -256,7 +265,7 @@ const clearAll = () => {
     DELETE FROM redeemCodes;
     DELETE FROM redeemRecords;
     DELETE FROM conversations;
-    DELETE FROM messages;
+    ${includeMessages ? 'DELETE FROM messages;' : ''}
   `)
 }
 
@@ -313,8 +322,8 @@ const readDb = () => {
   const redeemCodes = sqliteDb.prepare('SELECT * FROM redeemCodes').all()
   const redeemRecords = sqliteDb.prepare('SELECT * FROM redeemRecords').all()
   const conversations = sqliteDb.prepare('SELECT * FROM conversations').all()
-  const messages = sqliteDb.prepare('SELECT * FROM messages').all()
 
+  // messages 表(10万+行)不再随请求全量物化,按需走 getMessagesByConversation 等增量查询
   return {
     users,
     roles,
@@ -322,15 +331,58 @@ const readDb = () => {
     redeemCodes,
     redeemRecords,
     conversations,
-    messages
+    messages: []
   }
 }
 
 const writeDb = (data) => {
   runInTransaction(() => {
-    clearAll()
-    insertAll(data)
+    clearAll({ includeMessages: false })
+    insertAll(data, { includeMessages: false })
   })
+}
+
+const getUserById = (id) => {
+  const user = sqliteDb.prepare('SELECT * FROM users WHERE id = ?').get(id)
+  if (!user) {
+    return null
+  }
+  return {
+    ...user,
+    currentSessionId: user.currentSessionId || null,
+    sessionUpdatedAt: user.sessionUpdatedAt || null,
+    memberExpireAt: user.memberExpireAt || null,
+    adminUsername: user.adminUsername || null
+  }
+}
+
+const getMessagesByConversation = (conversationId) => {
+  return sqliteDb
+    .prepare('SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt')
+    .all(conversationId)
+}
+
+const insertMessage = (message) => {
+  sqliteDb
+    .prepare('INSERT INTO messages (id, conversationId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)')
+    .run(
+      message.id,
+      message.conversationId || null,
+      message.role || 'assistant',
+      message.content || '',
+      message.createdAt || getNow()
+    )
+}
+
+const updateConversationTimestamp = (id, updatedAt) => {
+  sqliteDb.prepare('UPDATE conversations SET updatedAt = ? WHERE id = ?').run(updatedAt, id)
+}
+
+const findConversationIdsByMessageContent = (keyword) => {
+  const rows = sqliteDb
+    .prepare('SELECT DISTINCT conversationId FROM messages WHERE lower(content) LIKE \'%\' || ? || \'%\'')
+    .all(String(keyword).toLowerCase())
+  return new Set(rows.map((item) => item.conversationId))
 }
 
 initSchema()
@@ -341,5 +393,10 @@ module.exports = {
   writeDb,
   newId,
   getNow,
-  addMonths
+  addMonths,
+  getUserById,
+  getMessagesByConversation,
+  insertMessage,
+  updateConversationTimestamp,
+  findConversationIdsByMessageContent
 }

@@ -8,7 +8,17 @@ const dotenv = require('dotenv')
 
 dotenv.config()
 
-const { readDb, writeDb, newId, getNow, addMonths } = require('./db')
+const {
+  readDb,
+  writeDb,
+  newId,
+  getNow,
+  addMonths,
+  getMessagesByConversation,
+  insertMessage,
+  updateConversationTimestamp,
+  findConversationIdsByMessageContent
+} = require('./db')
 const { signToken, userAuth, adminAuth, verifyToken, validateUserSession } = require('./auth')
 const { normalizeAdminMemberExpireAtInput } = require('./admin-member-expire')
 
@@ -458,9 +468,7 @@ app.get('/api/chat/conversations/:id/messages', userAuth, (req, res) => {
     return res.status(404).json({ message: '会话不存在' })
   }
 
-  const messages = db.messages
-    .filter((item) => item.conversationId === conversation.id)
-    .sort((a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf())
+  const messages = getMessagesByConversation(conversation.id)
   return sendOk(res, messages)
 })
 
@@ -481,7 +489,7 @@ app.post('/api/chat/conversations/:id/messages', userAuth, (req, res) => {
   }
 
   const now = getNow()
-  db.messages.push({
+  insertMessage({
     id: newId(),
     conversationId: conversation.id,
     role: 'user',
@@ -496,10 +504,9 @@ app.post('/api/chat/conversations/:id/messages', userAuth, (req, res) => {
     content: `已收到你的问题：${content}\n这是演示回复，后续可替换真实模型 API。`,
     createdAt: getNow()
   }
-  db.messages.push(replyMessage)
+  insertMessage(replyMessage)
 
-  conversation.updatedAt = getNow()
-  writeDb(db)
+  updateConversationTimestamp(conversation.id, getNow())
   return sendOk(res, replyMessage)
 })
 
@@ -548,21 +555,20 @@ app.get('/api/chat/conversations/:id/stream', async (req, res) => {
     return res.status(500).json({ message: '服务器未配置 DEEPSEEK_API_KEY' })
   }
 
-  const historyMessages = db.messages.filter(
-    (item) => item.conversationId === conversation.id && ['user', 'assistant'].includes(item.role)
+  const historyMessages = getMessagesByConversation(conversation.id).filter((item) =>
+    ['user', 'assistant'].includes(item.role)
   )
   const contextMessages = buildContextByRounds(historyMessages, 6)
 
   const now = getNow()
-  db.messages.push({
+  insertMessage({
     id: newId(),
     conversationId: conversation.id,
     role: 'user',
     content,
     createdAt: now
   })
-  conversation.updatedAt = now
-  writeDb(db)
+  updateConversationTimestamp(conversation.id, now)
 
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -635,20 +641,15 @@ app.get('/api/chat/conversations/:id/stream', async (req, res) => {
       }
     }
 
-    const finalDb = readDb()
     if (assistantText || clientDisconnected) {
-      finalDb.messages.push({
+      insertMessage({
         id: newId(),
         conversationId: conversation.id,
         role: 'assistant',
         content: assistantText || '模型输出已中断。',
         createdAt: getNow()
       })
-      const finalConversation = finalDb.conversations.find((item) => item.id === conversation.id)
-      if (finalConversation) {
-        finalConversation.updatedAt = getNow()
-      }
-      writeDb(finalDb)
+      updateConversationTimestamp(conversation.id, getNow())
     }
 
     clearTimeout(timeoutTimer)
@@ -988,6 +989,7 @@ app.get('/api/admin/conversations', adminAuth, (req, res) => {
 
   if (search) {
     const lowered = search.toLowerCase()
+    const messageHitIds = findConversationIdsByMessageContent(lowered)
     list = list.filter((item) => {
       const titleHit = String(item.title || '').toLowerCase().includes(lowered)
       const phoneHit = String(item.userPhone || '').toLowerCase().includes(lowered)
@@ -995,11 +997,7 @@ app.get('/api/admin/conversations', adminAuth, (req, res) => {
         return true
       }
 
-      return db.messages.some(
-        (msg) =>
-          msg.conversationId === item.id &&
-          String(msg.content || '').toLowerCase().includes(lowered)
-      )
+      return messageHitIds.has(item.id)
     })
   }
 
@@ -1008,8 +1006,7 @@ app.get('/api/admin/conversations', adminAuth, (req, res) => {
 })
 
 app.get('/api/admin/conversations/:id/messages', adminAuth, (req, res) => {
-  const db = readDb()
-  const messages = db.messages.filter((item) => item.conversationId === req.params.id)
+  const messages = getMessagesByConversation(req.params.id)
   return sendOk(res, messages)
 })
 
