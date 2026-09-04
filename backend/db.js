@@ -388,6 +388,13 @@ const findConversationIdsByMessageContent = (keyword) => {
 initSchema()
 ensureSeedData()
 
+
+const getConversationsByUser = (userId, { limit = 100, offset = 0 } = {}) => {
+  return sqliteDb
+    .prepare('SELECT * FROM conversations WHERE userId = ? ORDER BY updatedAt DESC LIMIT ? OFFSET ?')
+    .all(userId, limit, offset)
+}
+
 module.exports = {
   readDb,
   writeDb,
@@ -398,5 +405,6 @@ module.exports = {
   getMessagesByConversation,
   insertMessage,
   updateConversationTimestamp,
-  findConversationIdsByMessageContent
+  findConversationIdsByMessageContent,
+  getConversationsByUser
 }

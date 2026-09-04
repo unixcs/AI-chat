@@ -59,7 +59,7 @@ const checkBackendHealth = async () => {
 const startAutoCheck = () => {
   retryTimer = window.setInterval(() => {
     checkBackendHealth()
-  }, 8000)
+  }, 30000)
 }
 
 const handleVisibilityChange = async () => {

@@ -17,7 +17,8 @@ const {
   getMessagesByConversation,
   insertMessage,
   updateConversationTimestamp,
-  findConversationIdsByMessageContent
+  findConversationIdsByMessageContent,
+  getConversationsByUser
 } = require('./db')
 const { signToken, userAuth, adminAuth, verifyToken, validateUserSession } = require('./auth')
 const { normalizeAdminMemberExpireAtInput } = require('./admin-member-expire')
@@ -28,6 +29,18 @@ const deepseekApiKey = process.env.DEEPSEEK_API_KEY || ''
 const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
 const deepseekBaseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
 const deepseekPromptFile = process.env.DEEPSEEK_SYSTEM_PROMPT_FILE || ''
+const deepseekExtraBody = (() => {
+  const raw = process.env.DEEPSEEK_EXTRA_BODY || ''
+  if (!raw) {
+    return {}
+  }
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    console.warn('[DEEPSEEK] DEEPSEEK_EXTRA_BODY JSON parse failed, ignoring:', error.message)
+    return {}
+  }
+})()
 const deepseekSystemPrompt = (() => {
   if (!deepseekPromptFile) {
     return '你是一个专业、简洁、友好的中文 AI 助手。'
@@ -170,6 +183,7 @@ const callDeepseekWithRetry = async ({ content, contextMessages, signal }) => {
           Authorization: `Bearer ${deepseekApiKey}`
         },
         body: JSON.stringify({
+          ...deepseekExtraBody,
           model: deepseekModel,
           stream: true,
           messages: [
@@ -437,10 +451,10 @@ app.post('/api/user/redeem', userAuth, (req, res) => {
 })
 
 app.get('/api/chat/conversations', userAuth, (req, res) => {
-  const db = readDb()
-  const list = db.conversations
-    .filter((item) => item.userId === req.user.userId)
-    .sort((a, b) => dayjs(b.updatedAt).valueOf() - dayjs(a.updatedAt).valueOf())
+  const page = Math.max(1, parseInt(req.query.page) || 1)
+  const pageSize = Math.min(500, parseInt(req.query.pageSize) || 100)
+  const offset = (page - 1) * pageSize
+  const list = getConversationsByUser(req.user.userId, { limit: pageSize, offset })
   return sendOk(res, list)
 })
 
@@ -629,7 +643,10 @@ app.get('/api/chat/conversations/:id/stream', async (req, res) => {
 
         try {
           const parsed = JSON.parse(dataPart)
-          const delta = parsed.choices?.[0]?.delta?.content || ''
+          const choiceDelta = parsed.choices?.[0]?.delta || {}
+          // reasoning_content (if present) is billed by DeepSeek but not shown to user
+          // Only forward visible content deltas to the client
+          const delta = choiceDelta.content || ''
           if (!delta) {
             continue
           }

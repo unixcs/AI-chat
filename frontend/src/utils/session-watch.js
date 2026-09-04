@@ -37,7 +37,7 @@ export const startSessionWatch = () => {
 
   sessionTimer = window.setInterval(() => {
     checkSession()
-  }, 30000)
+  }, 60000)
 }
 
 export const stopSessionWatch = () => {
