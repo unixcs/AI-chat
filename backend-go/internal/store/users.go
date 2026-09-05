@@ -126,8 +126,8 @@ func (s *Store) ListUsers(page, pageSize int, phone, status string) ([]model.Use
 	where := `WHERE role = 'user'`
 	args := []any{}
 	if phone != "" {
-		where += ` AND phone LIKE ?`
-		args = append(args, "%"+phone+"%")
+		where += ` AND phone LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(phone)+"%")
 	}
 	if status != "" {
 		where += ` AND status = ?`

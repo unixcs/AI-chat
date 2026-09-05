@@ -18,8 +18,14 @@ func scanCode(row interface{ Scan(...any) error }) (*model.RedeemCode, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.UsedAt = usedAt.String
-	c.UsedByUserID = usedBy.String
+	if usedAt.Valid {
+		v := usedAt.String
+		c.UsedAt = &v
+	}
+	if usedBy.Valid {
+		v := usedBy.String
+		c.UsedByUserID = &v
+	}
 	return c, nil
 }
 
@@ -40,7 +46,7 @@ func (s *Store) GetRedeemCodeByID(id string) (*model.RedeemCode, error) {
 }
 
 // Redeem consumes a code and extends membership atomically.
-func (s *Store) Redeem(codeID, userID, phone, beforeExpire, afterExpire string) error {
+func (s *Store) Redeem(codeID, code, userID, phone, beforeExpire, afterExpire string) error {
 	return s.inTx(func(tx *sql.Tx) error {
 		now := Now()
 		res, err := tx.Exec(`UPDATE redeemCodes SET status = 'used', usedAt = ?, usedByUserId = ? WHERE id = ? AND status = 'unused'`, now, userID, codeID)
@@ -54,7 +60,7 @@ func (s *Store) Redeem(codeID, userID, phone, beforeExpire, afterExpire string) 
 			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO redeemRecords (id, userId, phone, code, activatedAt, beforeExpireAt, afterExpireAt) VALUES (?,?,?,?,?,?,?)`,
-			NewID(), userID, phone, "", now, nilIfEmpty(beforeExpire), afterExpire); err != nil {
+			NewID(), userID, phone, code, now, nilIfEmpty(beforeExpire), afterExpire); err != nil {
 			return err
 		}
 		return nil
@@ -86,8 +92,8 @@ func (s *Store) ListRedeemCodes(page, pageSize int, status, codeKeyword string) 
 		args = append(args, status)
 	}
 	if codeKeyword != "" {
-		where += " AND upper(code) LIKE ?"
-		args = append(args, "%"+codeKeyword+"%")
+		where += ` AND upper(code) LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(codeKeyword)+"%")
 	}
 	var total int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM redeemCodes `+where, args...).Scan(&total); err != nil {
@@ -118,11 +124,11 @@ func (s *Store) ListRedeemCodes(page, pageSize int, status, codeKeyword string) 
 
 func (s *Store) attachPhones(codes []model.RedeemCode) error {
 	for i := range codes {
-		if codes[i].UsedByUserID == "" {
+		if codes[i].UsedByUserID == nil {
 			continue
 		}
 		var phone string
-		if err := s.DB.QueryRow(`SELECT phone FROM users WHERE id = ?`, codes[i].UsedByUserID).Scan(&phone); err != nil {
+		if err := s.DB.QueryRow(`SELECT phone FROM users WHERE id = ?`, *codes[i].UsedByUserID).Scan(&phone); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
@@ -156,8 +162,8 @@ func (s *Store) ListRedeemRecords(page, pageSize int, phone, start, end string) 
 	where := "WHERE 1=1"
 	args := []any{}
 	if phone != "" {
-		where += " AND phone LIKE ?"
-		args = append(args, "%"+phone+"%")
+		where += ` AND phone LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(phone)+"%")
 	}
 	if start != "" {
 		where += " AND activatedAt >= ?"
@@ -201,16 +207,17 @@ func (s *Store) ListConversationsAdmin(page, pageSize int, phone, keyword, searc
 		args = append(args, "%"+phone+"%")
 	}
 	if keyword != "" {
-		where += " AND title LIKE ?"
-		args = append(args, "%"+keyword+"%")
+		where += ` AND title LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(keyword)+"%")
 	}
 	// search matches title OR user phone OR any message content, SQL-side,
 	// so pagination counts matches the same way the Node backend did.
 	if search != "" {
 		lowered := strings.ToLower(search)
-		where += ` AND (title LIKE ? OR userId IN (SELECT id FROM users WHERE phone LIKE ?)
-			OR id IN (SELECT DISTINCT conversationId FROM messages WHERE lower(content) LIKE ?))`
-		args = append(args, "%"+lowered+"%", "%"+lowered+"%", "%"+lowered+"%")
+		pattern := "%" + escapeLike(lowered) + "%"
+		where += ` AND (title LIKE ? ESCAPE '\' OR userId IN (SELECT id FROM users WHERE phone LIKE ? ESCAPE '\')
+			OR id IN (SELECT DISTINCT conversationId FROM messages WHERE lower(content) LIKE ? ESCAPE '\'))`
+		args = append(args, pattern, pattern, pattern)
 	}
 	var total int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM conversations `+where, args...).Scan(&total); err != nil {

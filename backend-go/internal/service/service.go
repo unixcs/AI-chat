@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ai-chat-backend/internal/ai"
 	"ai-chat-backend/internal/auth"
@@ -135,7 +136,7 @@ func (s *Service) Register(phone, nickname, password string) *ServiceError {
 	if strings.TrimSpace(nickname) == "" {
 		return fail(400, "昵称不能为空")
 	}
-	if len(password) < 6 {
+	if utf8.RuneCountInString(password) < 6 {
 		return fail(400, "密码至少 6 位")
 	}
 	if !s.RegistrationOpen() {
@@ -293,7 +294,7 @@ func (s *Service) Redeem(userID, code string) (*model.User, *ServiceError) {
 	}
 	after := store.AddMonths(base, redeemCode.DurationMonths)
 
-	if serr := s.Store.Redeem(redeemCode.ID, userID, user.Phone, before, after); serr != nil {
+	if serr := s.Store.Redeem(redeemCode.ID, redeemCode.Code, userID, user.Phone, before, after); serr != nil {
 		return nil, fail(400, "兑换码已失效或已使用")
 	}
 	updated, err := s.Store.GetUserByID(userID)

@@ -5,6 +5,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -48,10 +49,26 @@ func failMsg(w http.ResponseWriter, status int, message string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"message": message})
 }
 
-func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
+const maxBodyBytes = 100 << 10 // Node express.json() default limit
+
+// decodeJSON mirrors the Node backend's tolerant behavior: an empty or
+// unparseable body yields zero-value fields and the endpoint's own validation
+// rejects them (Node lets "undefined" flow into the same checks). Only an
+// oversized payload is a hard error (413, like express.json's limit). Returns
+// false when the response has already been written.
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 	defer r.Body.Close()
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	return dec.Decode(target)
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err := dec.Decode(target); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			_ = json.NewEncoder(w).Encode(map[string]any{"message": "请求体过大"})
+			return false
+		}
+	}
+	return true
 }
 
 func queryInt(r *http.Request, key string, fallback int) int {
@@ -109,7 +126,9 @@ func logMiddleware(next http.Handler) http.Handler {
 // ---------- health ----------
 
 func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
-	ok(w, map[string]any{"ok": true, "service": "backend", "time": modelNow()})
+	// Node answered with the bare object (no {code,data} envelope) — keep it.
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "service": "backend", "time": modelNow()})
 }
 
 func modelNow() string {
@@ -170,5 +189,37 @@ func (a *API) Routes() http.Handler {
 	mux.HandleFunc("PUT /api/admin/settings", a.adminAuth(a.handleAdminSetSettings))
 	mux.HandleFunc("GET /api/admin/ai/status", a.adminAuth(a.handleAdminAIStatus))
 
-	return logMiddleware(mux)
+	return logMiddleware(corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The pattern mux answers matched routes (and 405s wrong methods on
+		// known paths); anything outside /api/* falls to the JSON 404 handler.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		notFoundHandler(w, r)
+	})))
+}
+
+// corsMiddleware mirrors the Node cors() package defaults: wildcard origin,
+// standard methods/headers, 204 preflight — so non-same-origin deployments
+// keep working exactly as they did against the Node backend.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// notFoundHandler returns Node-style JSON 404s for unmatched paths instead of
+// the mux's plain-text default.
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	_ = json.NewEncoder(w).Encode(map[string]any{"message": "接口不存在"})
 }

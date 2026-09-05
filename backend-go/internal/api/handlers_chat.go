@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"ai-chat-backend/internal/ai"
 	"ai-chat-backend/internal/model"
@@ -57,7 +58,8 @@ func (a *API) handlePostMessage(user *model.User, w http.ResponseWriter, r *http
 	var body struct {
 		Content string `json:"content"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil || body.Content == "" {
+	decodeJSON(w, r, &body)
+	if body.Content == "" {
 		failMsg(w, 400, "消息内容不能为空")
 		return
 	}
@@ -140,9 +142,14 @@ func (a *API) handleStream(w http.ResponseWriter, r *http.Request) {
 	case <-clientGone:
 	}
 
-	// Persist whatever the model produced (partial on abort), like Node did.
-	if assistantText != "" || r.Context().Err() == nil {
+	// Persist semantics copied from the Node catch/success split: partial
+	// content is always saved; the placeholder is ONLY for client-initiated
+	// aborts with zero content. An upstream failure with a healthy client
+	// persists nothing (Node: catch branch has no insertMessage).
+	if assistantText != "" {
 		a.Svc.PersistReply(conversationID, assistantText)
+	} else if r.Context().Err() != nil {
+		a.Svc.PersistReply(conversationID, "模型输出已中断。")
 	}
 
 	if r.Context().Err() != nil {
@@ -179,8 +186,11 @@ func sseErrorFor(merr *ai.ModelError) (string, string) {
 }
 
 func mustJSON(v any) string {
-	raw, _ := json.Marshal(v)
-	return string(raw)
+	var sb strings.Builder
+	enc := json.NewEncoder(&sb)
+	enc.SetEscapeHTML(false) // Node JSON.stringify does not escape <>& by default
+	_ = enc.Encode(v)
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func membershipValid(u *model.User) bool { return serviceMembershipValid(u) }

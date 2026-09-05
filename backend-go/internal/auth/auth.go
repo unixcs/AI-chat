@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -42,7 +43,7 @@ func VerifyToken(secret, token string) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method %v", t.Header["alg"])
 		}
 		return []byte(secret), nil
-	})
+	}, jwt.WithExpirationRequired()) // tokens without exp are rejected (hardening)
 	if err != nil || !parsed.Valid {
 		return nil, errors.New("invalid token")
 	}
@@ -64,11 +65,12 @@ func str(mc jwt.MapClaims, key string) string {
 	return ""
 }
 
-// ParseBearerToken mirrors the Node helper: empty when header missing/malformed.
+// ParseBearerToken mirrors the Node helper: empty when header missing/malformed,
+// token trimmed of surrounding whitespace (Node auth.js does .trim() too).
 func ParseBearerToken(header string) string {
 	const prefix = "Bearer "
 	if len(header) < len(prefix) || header[:len(prefix)] != prefix {
 		return ""
 	}
-	return header[len(prefix):]
+	return strings.TrimSpace(header[len(prefix):])
 }

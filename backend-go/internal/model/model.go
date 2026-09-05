@@ -36,14 +36,14 @@ type Menu struct {
 }
 
 type RedeemCode struct {
-	ID             string `json:"id"`
-	Code           string `json:"code"`
-	DurationMonths int    `json:"durationMonths"`
-	Status         string `json:"status"`
-	CreatedAt      string `json:"createdAt"`
-	UsedAt         string `json:"usedAt"`
-	UsedByUserID   string `json:"usedByUserId"`
-	UsedByPhone    string `json:"usedByPhone,omitempty"`
+	ID             string  `json:"id"`
+	Code           string  `json:"code"`
+	DurationMonths int     `json:"durationMonths"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"createdAt"`
+	UsedAt         *string `json:"usedAt"`
+	UsedByUserID   *string `json:"usedByUserId"`
+	UsedByPhone    string  `json:"usedByPhone"`
 }
 
 type RedeemRecord struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ai-chat-backend/internal/model"
 	"ai-chat-backend/internal/store"
@@ -49,7 +50,7 @@ func (s *Service) AdminLogin(username, password string) (string, *ServiceError) 
 }
 
 func (s *Service) AdminChangePassword(adminID, newPassword string) *ServiceError {
-	if len(newPassword) < 6 {
+	if utf8.RuneCountInString(newPassword) < 6 {
 		return fail(400, "新密码至少 6 位")
 	}
 	admin, err := s.Store.GetUserByID(adminID)
@@ -165,7 +166,7 @@ func (s *Service) AdminSetUserStatus(id, status, operator string) *ServiceError 
 }
 
 func (s *Service) AdminResetPassword(id, newPassword, operator string) *ServiceError {
-	if len(newPassword) < 6 {
+	if utf8.RuneCountInString(newPassword) < 6 {
 		return fail(400, "新密码至少 6 位")
 	}
 	user, err := s.Store.GetUserByID(id)

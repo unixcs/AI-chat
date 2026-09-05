@@ -20,8 +20,7 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	token, serr := a.Svc.AdminLogin(body.Username, body.Password)
@@ -36,8 +35,7 @@ func (a *API) handleAdminChangePassword(admin *model.User, w http.ResponseWriter
 	var body struct {
 		NewPassword string `json:"newPassword"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if serr := a.Svc.AdminChangePassword(admin.ID, body.NewPassword); serr != nil {
@@ -72,8 +70,7 @@ func (a *API) handleAdminUpdateUser(_ *model.User, w http.ResponseWriter, r *htt
 		Nickname string `json:"nickname"`
 		Phone    string `json:"phone"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if serr := a.Svc.AdminUpdateUser(r.PathValue("id"), body.Nickname, body.Phone); serr != nil {
@@ -87,8 +84,7 @@ func (a *API) handleAdminUserStatus(_ *model.User, w http.ResponseWriter, r *htt
 	var body struct {
 		Status string `json:"status"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if serr := a.Svc.AdminSetUserStatus(r.PathValue("id"), body.Status, "web-admin"); serr != nil {
@@ -102,8 +98,7 @@ func (a *API) handleAdminResetPassword(_ *model.User, w http.ResponseWriter, r *
 	var body struct {
 		NewPassword string `json:"newPassword"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if serr := a.Svc.AdminResetPassword(r.PathValue("id"), body.NewPassword, "web-admin"); serr != nil {
@@ -117,8 +112,7 @@ func (a *API) handleAdminMemberExpire(_ *model.User, w http.ResponseWriter, r *h
 	var body struct {
 		MemberExpireAt *string `json:"memberExpireAt"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	value := ""
@@ -187,8 +181,7 @@ func (a *API) handleAdminRedeemCodesBatch(_ *model.User, w http.ResponseWriter, 
 		Quantity       *int `json:"quantity"`
 		DurationMonths *int `json:"durationMonths"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	quantity := 5

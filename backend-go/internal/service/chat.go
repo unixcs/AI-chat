@@ -13,14 +13,25 @@ import (
 
 // ---------- conversations ----------
 
+// ListConversations reproduces the Node pagination contract verbatim:
+// page: max(1, parseInt||1); pageSize: min(500, parseInt||100) — including
+// the quirky but real behavior that a negative pageSize flows into SQLite's
+// LIMIT (negative = unlimited) instead of being clamped.
 func (s *Service) ListConversations(userID string, page, pageSize int) ([]model.Conversation, *ServiceError) {
 	if page < 1 {
 		page = 1
 	}
-	if pageSize < 1 || pageSize > 500 {
+	switch {
+	case pageSize > 500:
+		pageSize = 500
+	case pageSize == 0:
 		pageSize = 100
 	}
-	list, err := s.Store.ListConversationsByUser(userID, pageSize, (page-1)*pageSize)
+	offset := (page - 1) * pageSize
+	if offset < 0 {
+		offset = 0 // SQLite treats negative OFFSET as 0
+	}
+	list, err := s.Store.ListConversationsByUser(userID, pageSize, offset)
 	if err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}

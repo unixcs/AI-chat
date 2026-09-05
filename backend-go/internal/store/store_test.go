@@ -76,15 +76,22 @@ func TestRedeemFlow(t *testing.T) {
 
 	before := ""
 	after := AddMonths(Now(), 1)
-	if rerr := s.Redeem("c1", "u1", "13800000001", before, after); rerr != nil {
+	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", before, after); rerr != nil {
 		t.Fatalf("redeem: %v", rerr)
 	}
 	user, _ := s.GetUserByID("u1")
 	if user.MemberExpireAt != after {
 		t.Fatalf("membership not extended: %q", user.MemberExpireAt)
 	}
+	records, _, err := s.ListRedeemRecords(1, 10, "", "", "")
+	if err != nil || len(records) != 1 {
+		t.Fatalf("records: %v %d", err, len(records))
+	}
+	if records[0].Code != "VIP-TEST-000001" {
+		t.Fatalf("redeem record must carry the code, got %q", records[0].Code)
+	}
 	// second redeem of same code must fail
-	if rerr := s.Redeem("c1", "u1", "13800000001", before, after); rerr == nil {
+	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", before, after); rerr == nil {
 		t.Fatal("double redeem must fail")
 	}
 }
@@ -171,7 +178,7 @@ func TestRedeemConcurrentDoubleSpend(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.Redeem("c1", "u1", "13800000001", "", AddMonths(Now(), 1)); err == nil {
+			if err := s.Redeem("c1", "VIP-TEST-CONCURRENT", "u1", "13800000001", "", AddMonths(Now(), 1)); err == nil {
 				winners <- struct{}{}
 			}
 		}()

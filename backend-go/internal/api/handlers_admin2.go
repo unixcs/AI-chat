@@ -23,8 +23,7 @@ func (a *API) handleAdminCreateAnnouncement(_ *model.User, w http.ResponseWriter
 		Content string `json:"content"`
 		Active  *bool  `json:"active"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	active := true
@@ -45,8 +44,7 @@ func (a *API) handleAdminUpdateAnnouncement(_ *model.User, w http.ResponseWriter
 		Content string `json:"content"`
 		Active  *bool  `json:"active"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if serr := a.Svc.AdminUpdateAnnouncement(r.PathValue("id"), body.Title, body.Content, body.Active); serr != nil {
@@ -78,8 +76,7 @@ func (a *API) handleAdminSetSettings(_ *model.User, w http.ResponseWriter, r *ht
 		RegistrationOpen *bool `json:"registrationOpen"`
 		RedeemOpen       *bool `json:"redeemOpen"`
 	}
-	if err := decodeJSON(w, r, &body); err != nil {
-		failMsg(w, 400, "请求参数错误")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if body.RegistrationOpen != nil {

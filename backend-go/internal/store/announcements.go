@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"database/sql"
 	"errors"
 
@@ -127,4 +128,13 @@ func boolInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// escapeLike neutralizes LIKE wildcards so filters match literally,
+// mirroring the Node backend's String.includes semantics.
+func escapeLike(v string) string {
+	v = strings.ReplaceAll(v, `\`, `\\`)
+	v = strings.ReplaceAll(v, "%", `\%`)
+	v = strings.ReplaceAll(v, "_", `\_`)
+	return v
 }
