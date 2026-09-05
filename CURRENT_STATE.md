@@ -7,7 +7,7 @@
 
 - 生产环境 `/opt/AI-chat` 已完成修复与部署：nginx 3600s 超时、DEEPSEEK_EXTRA_BODY、分页、前端流式渲染优化均已生效。
 - 生产容器端口 `8181 / 3001` 均已重建并持续运行；数据库 `integrity_check=ok`，未丢数据。
-- GitHub push 因本机缺少认证凭据**尚未完成**；本地分支 `master` HEAD 为 `8a012cd`。
+- GitHub push 已完成：本地 `master`（HEAD `4c667ec`）已推送至远程 `origin/main`。
 - 测试环境 `8189/3002` 已于部署完成后关闭（`/home/admin/ai-chat-test` 数据保留，未删除）。
 
 
@@ -15,19 +15,19 @@
 
 | 对象 | 位置 | 状态 |
 |---|---|---|
-| GitHub 远程仓库 | `https://github.com/unixcs/AI-chat.git` | 本地已准备好 push，当前因本机没有 GitHub 凭据未 push |
-| 本地代码仓库（我们正在开发的地方） | `/mnt/vps/yun/AI-chat/` | `master` 分支，commit `8a012cd`（含 89b3a94 及后续 stream 修复、文档） |
+| GitHub 远程仓库 | `git@github.com:unixcs/AI-chat.git` | 本地 `master` 已与 `origin/main` 同步（commit `4c667ec`） |
+| 本地代码仓库（我们正在开发的地方） | `/mnt/vps/yun/AI-chat/` | `master` 分支，commit `4c667ec`（含 89b3a94 及后续 stream 修复、文档、工作流总结） |
 | 服务器生产代码 | `/opt/AI-chat/` | 已更新为新代码（2026-09-05） |
 | 服务器生产容器 | `ai-chat-frontend` / `ai-chat-backend` | 运行中，端口 `8181` / `3001` |
 | 服务器测试容器 | `/home/admin/ai-chat-test`（`ai-chat-test-*`） | 已关闭，数据保留在 `data/`，端口 `8189` / `3002` 已释放 |
 
 ## 2. 当前最重要的一句话
 
-**生产已上线新代码，测试服已关闭；只剩 push 到 GitHub 因缺少凭据待补。**
+**生产已上线新代码，测试服已关闭，GitHub 已同步。**
 
 - 生产 `/opt/AI-chat` 已更新：nginx 3600s 超时、后端分页、`DEEPSEEK_EXTRA_BODY`、前端流式渲染优化均已生效。
 - 测试服 `8189/3002` 已通过 `docker compose down` 关闭，测试数据保留未删除。
-- 本地分支 `master` 已包含全部生产代码与文档，等待 GitHub 认证通过后 `git push origin master:main`。
+- 本地分支 `master` 已包含全部生产代码与文档，并已推送至 GitHub `main`（commit `4c667ec`）。
 
 ## 3. 已做工作
 
