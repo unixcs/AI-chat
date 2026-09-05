@@ -133,7 +133,7 @@ func (b *Bot) handle(u telegramUpdate) {
 		return
 	}
 	log.Printf("[tg-audit] operator=tg:%d cmd=%q", fromID, text)
-	b.send(chatID, b.dispatch(text))
+	b.send(chatID, b.dispatch(fromID, text))
 }
 
 func (b *Bot) isAdmin(id int64) bool {
@@ -145,7 +145,7 @@ func (b *Bot) isAdmin(id int64) bool {
 	return false
 }
 
-func (b *Bot) dispatch(text string) string {
+func (b *Bot) dispatch(fromID int64, text string) string {
 	parts := strings.Fields(text)
 	cmd := strings.ToLower(strings.TrimPrefix(parts[0], "/"))
 	arg := strings.TrimSpace(strings.TrimPrefix(text, parts[0]))
@@ -158,25 +158,25 @@ func (b *Bot) dispatch(text string) string {
 	case "ai":
 		return b.cmdAI()
 	case "code":
-		return b.cmdCodes(1)
+		return b.cmdCodes(fromID, 1)
 	case "codes":
 		n := 1
 		if v, err := strconv.Atoi(arg); err == nil && v > 0 {
 			n = v
 		}
-		return b.cmdCodes(n)
+		return b.cmdCodes(fromID, n)
 	case "user":
-		return b.cmdUser(arg)
+		return b.cmdUser(fromID, arg)
 	case "ban":
-		return b.cmdSetStatus(arg, "disabled")
+		return b.cmdSetStatus(fromID, arg, "disabled")
 	case "unban":
-		return b.cmdSetStatus(arg, "active")
+		return b.cmdSetStatus(fromID, arg, "active")
 	case "announce":
-		return b.cmdAnnounce(arg)
+		return b.cmdAnnounce(fromID, arg)
 	case "reg":
-		return b.cmdToggle("注册", arg, b.svc.SetRegistrationOpen, b.svc.RegistrationOpen())
+		return b.cmdToggle("注册", arg, b.svc.RegistrationOpen(), func(open bool) error { return b.svc.SetRegistrationOpen(open, b.operator(fromID)) })
 	case "redeem":
-		return b.cmdToggle("兑换", arg, b.svc.SetRedeemOpen, b.svc.RedeemOpen())
+		return b.cmdToggle("兑换", arg, b.svc.RedeemOpen(), func(open bool) error { return b.svc.SetRedeemOpen(open, b.operator(fromID)) })
 	default:
 		return "未知命令，发送 /help 查看列表。"
 	}
@@ -207,8 +207,8 @@ func (b *Bot) cmdAI() string {
 	return sb.String()
 }
 
-func (b *Bot) cmdCodes(n int) string {
-	codes, serr := b.svc.GenerateRedeemCodes(n, 1)
+func (b *Bot) cmdCodes(fromID int64, n int) string {
+	codes, serr := b.svc.GenerateRedeemCodes(n, 1, b.operator(fromID))
 	if serr != nil {
 		return "生成失败：" + serr.Message
 	}
@@ -220,7 +220,7 @@ func (b *Bot) cmdCodes(n int) string {
 	return sb.String()
 }
 
-func (b *Bot) cmdUser(phone string) string {
+func (b *Bot) cmdUser(fromID int64, phone string) string {
 	user, err := b.svc.LookupUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
 		return "用户不存在"
@@ -232,12 +232,12 @@ func (b *Bot) cmdUser(phone string) string {
 	return fmt.Sprintf("手机号: %s\n昵称: %s\n状态: %s\n会员: %s", user.Phone, user.Nickname, user.Status, member)
 }
 
-func (b *Bot) cmdSetStatus(phone, status string) string {
+func (b *Bot) cmdSetStatus(fromID int64, phone, status string) string {
 	user, err := b.svc.LookupUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
 		return "用户不存在"
 	}
-	if serr := b.svc.AdminSetUserStatus(user.ID, status); serr != nil {
+	if serr := b.svc.AdminSetUserStatus(user.ID, status, b.operator(fromID)); serr != nil {
 		return "操作失败：" + serr.Message
 	}
 	if status == "disabled" {
@@ -246,18 +246,18 @@ func (b *Bot) cmdSetStatus(phone, status string) string {
 	return "已解封 " + phone
 }
 
-func (b *Bot) cmdAnnounce(text string) string {
+func (b *Bot) cmdAnnounce(fromID int64, text string) string {
 	if strings.TrimSpace(text) == "" {
 		return "用法: /announce <公告内容>"
 	}
-	_, serr := b.svc.AdminCreateAnnouncement("系统公告", text, true)
+	_, serr := b.svc.AdminCreateAnnouncement("系统公告", text, true, b.operator(fromID))
 	if serr != nil {
 		return "发布失败：" + serr.Message
 	}
 	return "公告已发布 ✅（用户确认后不再显示）"
 }
 
-func (b *Bot) cmdToggle(name, arg string, setter func(bool) error, current bool) string {
+func (b *Bot) cmdToggle(name, arg string, current bool, setter func(bool) error) string {
 	switch strings.ToLower(strings.TrimSpace(arg)) {
 	case "on", "open", "开":
 		_ = setter(true)
@@ -268,6 +268,11 @@ func (b *Bot) cmdToggle(name, arg string, setter func(bool) error, current bool)
 	default:
 		return name + "当前: " + boolText(current) + "（用法 /" + strings.ToLower(name) + " on|off）"
 	}
+}
+
+// operator renders the audit identity for a Telegram admin command.
+func (b *Bot) operator(fromID int64) string {
+	return fmt.Sprintf("tg:%d", fromID)
 }
 
 func boolText(b bool) string {

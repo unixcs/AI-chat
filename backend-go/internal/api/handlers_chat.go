@@ -166,10 +166,15 @@ func sseErrorFor(merr *ai.ModelError) (string, string) {
 	case "MODEL_INSUFFICIENT_BALANCE":
 		return merr.Code, "服务额度不足，请联系管理员"
 	default:
-		if merr.Message != "" {
-			return merr.Code, merr.Message
+		// Node: errorCode = error.modelCode || 'STREAM_ERROR'
+		code := merr.Code
+		if code == "" {
+			code = "STREAM_ERROR"
 		}
-		return "STREAM_ERROR", "模型调用失败"
+		if merr.Message != "" {
+			return code, merr.Message
+		}
+		return code, "模型调用失败"
 	}
 }
 

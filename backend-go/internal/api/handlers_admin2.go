@@ -31,7 +31,7 @@ func (a *API) handleAdminCreateAnnouncement(_ *model.User, w http.ResponseWriter
 	if body.Active != nil {
 		active = *body.Active
 	}
-	ann, serr := a.Svc.AdminCreateAnnouncement(body.Title, body.Content, active)
+	ann, serr := a.Svc.AdminCreateAnnouncement(body.Title, body.Content, active, "web-admin")
 	if serr != nil {
 		fail(w, serr)
 		return
@@ -83,13 +83,13 @@ func (a *API) handleAdminSetSettings(_ *model.User, w http.ResponseWriter, r *ht
 		return
 	}
 	if body.RegistrationOpen != nil {
-		if err := a.Svc.SetRegistrationOpen(*body.RegistrationOpen); err != nil {
+		if err := a.Svc.SetRegistrationOpen(*body.RegistrationOpen, "web-admin"); err != nil {
 			failMsg(w, 500, "服务器繁忙")
 			return
 		}
 	}
 	if body.RedeemOpen != nil {
-		if err := a.Svc.SetRedeemOpen(*body.RedeemOpen); err != nil {
+		if err := a.Svc.SetRedeemOpen(*body.RedeemOpen, "web-admin"); err != nil {
 			failMsg(w, 500, "服务器繁忙")
 			return
 		}

@@ -329,20 +329,20 @@ func (s *Service) RedeemOpen() bool {
 	return v == "true"
 }
 
-func (s *Service) SetRegistrationOpen(open bool) error {
-	auditLog("toggle-registration", fmt.Sprintf("%t", open), "")
+func (s *Service) SetRegistrationOpen(open bool, operator string) error {
+	auditLog("toggle-registration", fmt.Sprintf("%t", open), operator)
 	return s.Store.SetSetting("registrationOpen", fmt.Sprintf("%t", open))
 }
 
-func (s *Service) SetRedeemOpen(open bool) error {
-	auditLog("toggle-redeem", fmt.Sprintf("%t", open), "")
+func (s *Service) SetRedeemOpen(open bool, operator string) error {
+	auditLog("toggle-redeem", fmt.Sprintf("%t", open), operator)
 	return s.Store.SetSetting("redeemOpen", fmt.Sprintf("%t", open))
 }
 
 // auditLog is the minimal audit trail for sensitive admin operations
-// (original Plan §19: 重要管理操作记录日志). Both the HTTP admin API and the
-// Telegram bot funnel their mutations through service methods, so this covers
-// both entry points; the bot additionally tags its operator Telegram ID.
+// (original Plan §19: 重要管理操作记录日志). Both the HTTP admin API ("web-admin")
+// and the Telegram bot ("tg:<id>") funnel their mutations through service
+// methods, so every audit line carries its true operator identity.
 func auditLog(action, detail, operator string) {
 	by := operator
 	if by == "" {

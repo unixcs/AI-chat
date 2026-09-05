@@ -91,7 +91,7 @@ func (a *API) handleAdminUserStatus(_ *model.User, w http.ResponseWriter, r *htt
 		failMsg(w, 400, "请求参数错误")
 		return
 	}
-	if serr := a.Svc.AdminSetUserStatus(r.PathValue("id"), body.Status); serr != nil {
+	if serr := a.Svc.AdminSetUserStatus(r.PathValue("id"), body.Status, "web-admin"); serr != nil {
 		fail(w, serr)
 		return
 	}
@@ -106,7 +106,7 @@ func (a *API) handleAdminResetPassword(_ *model.User, w http.ResponseWriter, r *
 		failMsg(w, 400, "请求参数错误")
 		return
 	}
-	if serr := a.Svc.AdminResetPassword(r.PathValue("id"), body.NewPassword); serr != nil {
+	if serr := a.Svc.AdminResetPassword(r.PathValue("id"), body.NewPassword, "web-admin"); serr != nil {
 		fail(w, serr)
 		return
 	}
@@ -125,7 +125,7 @@ func (a *API) handleAdminMemberExpire(_ *model.User, w http.ResponseWriter, r *h
 	if body.MemberExpireAt != nil {
 		value = *body.MemberExpireAt
 	}
-	updated, serr := a.Svc.AdminSetMemberExpire(r.PathValue("id"), value)
+	updated, serr := a.Svc.AdminSetMemberExpire(r.PathValue("id"), value, "web-admin")
 	if serr != nil {
 		fail(w, serr)
 		return
@@ -199,7 +199,7 @@ func (a *API) handleAdminRedeemCodesBatch(_ *model.User, w http.ResponseWriter, 
 	if body.DurationMonths != nil {
 		duration = *body.DurationMonths
 	}
-	created, serr := a.Svc.GenerateRedeemCodes(quantity, duration)
+	created, serr := a.Svc.GenerateRedeemCodes(quantity, duration, "web-admin")
 	if serr != nil {
 		fail(w, serr)
 		return
@@ -208,7 +208,7 @@ func (a *API) handleAdminRedeemCodesBatch(_ *model.User, w http.ResponseWriter, 
 }
 
 func (a *API) handleAdminRedeemCodeVoid(_ *model.User, w http.ResponseWriter, r *http.Request) {
-	if serr := a.Svc.AdminVoidRedeemCode(r.PathValue("id")); serr != nil {
+	if serr := a.Svc.AdminVoidRedeemCode(r.PathValue("id"), "web-admin"); serr != nil {
 		fail(w, serr)
 		return
 	}

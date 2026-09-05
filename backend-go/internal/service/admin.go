@@ -149,7 +149,7 @@ func (s *Service) AdminUpdateUser(id, nickname, phone string) *ServiceError {
 	return nil
 }
 
-func (s *Service) AdminSetUserStatus(id, status string) *ServiceError {
+func (s *Service) AdminSetUserStatus(id, status, operator string) *ServiceError {
 	if status != "active" && status != "disabled" {
 		return fail(400, "状态参数错误")
 	}
@@ -160,11 +160,11 @@ func (s *Service) AdminSetUserStatus(id, status string) *ServiceError {
 	if err := s.Store.UpdateUserStatus(id, status); err != nil {
 		return fail(500, "服务器繁忙")
 	}
-	auditLog("set-user-status", fmt.Sprintf("%s -> %s", user.Phone, status), "")
+	auditLog("set-user-status", fmt.Sprintf("%s -> %s", user.Phone, status), operator)
 	return nil
 }
 
-func (s *Service) AdminResetPassword(id, newPassword string) *ServiceError {
+func (s *Service) AdminResetPassword(id, newPassword, operator string) *ServiceError {
 	if len(newPassword) < 6 {
 		return fail(400, "新密码至少 6 位")
 	}
@@ -179,7 +179,7 @@ func (s *Service) AdminResetPassword(id, newPassword string) *ServiceError {
 	if err := s.Store.UpdateUserPassword(id, hash); err != nil {
 		return fail(500, "服务器繁忙")
 	}
-	auditLog("reset-user-password", user.Phone, "")
+	auditLog("reset-user-password", user.Phone, operator)
 	return nil
 }
 
@@ -205,7 +205,7 @@ func NormalizeMemberExpireAt(value string) (string, error) {
 	return "", fmt.Errorf("会员到期时间格式不正确")
 }
 
-func (s *Service) AdminSetMemberExpire(id, memberExpireAt string) (*model.User, *ServiceError) {
+func (s *Service) AdminSetMemberExpire(id, memberExpireAt, operator string) (*model.User, *ServiceError) {
 	user, err := s.Store.GetUserByID(id)
 	if err != nil || user.Role != "user" {
 		return nil, fail(404, "用户不存在")
@@ -217,7 +217,7 @@ func (s *Service) AdminSetMemberExpire(id, memberExpireAt string) (*model.User, 
 	if err := s.Store.UpdateUserMemberExpire(id, normalized); err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}
-	auditLog("set-member-expire", fmt.Sprintf("%s -> %s", user.Phone, normalized), "")
+	auditLog("set-member-expire", fmt.Sprintf("%s -> %s", user.Phone, normalized), operator)
 	updated, err := s.Store.GetUserByID(id)
 	if err != nil {
 		return nil, fail(500, "服务器繁忙")
@@ -261,7 +261,7 @@ func (s *Service) AdminRedeemCodesExport(status, codeKeyword string) ([]model.Re
 }
 
 // GenerateRedeemCodes mints up to 200 codes with the same VIP-YYYYMMDD-XXXXXX shape.
-func (s *Service) GenerateRedeemCodes(quantity, durationMonths int) ([]model.RedeemCode, *ServiceError) {
+func (s *Service) GenerateRedeemCodes(quantity, durationMonths int, operator string) ([]model.RedeemCode, *ServiceError) {
 	if quantity <= 0 {
 		quantity = 1
 	}
@@ -295,11 +295,11 @@ func (s *Service) GenerateRedeemCodes(quantity, durationMonths int) ([]model.Red
 		}
 		created = append(created, c)
 	}
-	auditLog("generate-redeem-codes", fmt.Sprintf("n=%d duration=%dmo", quantity, durationMonths), "")
+	auditLog("generate-redeem-codes", fmt.Sprintf("n=%d duration=%dmo", quantity, durationMonths), operator)
 	return created, nil
 }
 
-func (s *Service) AdminVoidRedeemCode(id string) *ServiceError {
+func (s *Service) AdminVoidRedeemCode(id, operator string) *ServiceError {
 	c, err := s.Store.GetRedeemCodeByID(id)
 	if err != nil {
 		return fail(404, "兑换码不存在")
@@ -310,6 +310,7 @@ func (s *Service) AdminVoidRedeemCode(id string) *ServiceError {
 	if err := s.Store.VoidRedeemCode(id); err != nil {
 		return fail(500, "服务器繁忙")
 	}
+	auditLog("void-redeem-code", id, operator)
 	return nil
 }
 
@@ -363,7 +364,7 @@ func (s *Service) AdminListAnnouncements() ([]map[string]any, *ServiceError) {
 	return out, nil
 }
 
-func (s *Service) AdminCreateAnnouncement(title, content string, active bool) (*model.Announcement, *ServiceError) {
+func (s *Service) AdminCreateAnnouncement(title, content string, active bool, operator string) (*model.Announcement, *ServiceError) {
 	if strings.TrimSpace(title) == "" {
 		return nil, fail(400, "公告标题不能为空")
 	}
@@ -382,7 +383,7 @@ func (s *Service) AdminCreateAnnouncement(title, content string, active bool) (*
 	if err := s.Store.CreateAnnouncement(a); err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}
-	auditLog("create-announcement", title, "")
+	auditLog("create-announcement", title, operator)
 	return a, nil
 }
 

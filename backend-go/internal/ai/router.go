@@ -106,7 +106,11 @@ func (h *Health) RecordSuccess(name string, firstTokenMs, totalMs int64) {
 	} else {
 		e.EwmaFirstToken = e.EwmaFirstToken*0.7 + float64(firstTokenMs)*0.3
 	}
-	e.EwmaTotal = e.EwmaTotal*0.7 + float64(totalMs)*0.3
+	if e.EwmaTotal == 0 {
+		e.EwmaTotal = float64(totalMs)
+	} else {
+		e.EwmaTotal = e.EwmaTotal*0.7 + float64(totalMs)*0.3
+	}
 }
 
 func (h *Health) RecordFailure(name string, isTimeout bool, msg string) {
@@ -348,17 +352,23 @@ func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 			return nil, merr
 		}
 
+		// A user-initiated cancel is not an upstream fault — no health damage.
+		if merr.Code != "MODEL_CLIENT_GONE" {
+			isTimeout := merr.Code == "MODEL_TIMEOUT"
+			r.health.RecordFailure(entry.Name, isTimeout, merr.Message)
+			switches++
+			logAttempt(entry.Name, entry.Model, merr.Code, merr.Message)
+		}
+
 		// Failover window is closed once the client saw content: surface the
 		// failure immediately instead of replaying the pool (no "AAABBB").
+		// The failing entry still gets its health record above — a model that
+		// always dies mid-stream must not keep winning the first window.
 		if emitted {
 			return nil, &ModelError{Code: "STREAM_ERROR", Message: "模型响应中断"}
 		}
 
 		lastErr = merr
-		isTimeout := merr.Code == "MODEL_TIMEOUT"
-		r.health.RecordFailure(entry.Name, isTimeout, merr.Message)
-		switches++
-		logAttempt(entry.Name, entry.Model, merr.Code, merr.Message)
 
 		// Balance problems on the official account will not improve by
 		// switching — surface immediately instead of burning the pool.

@@ -57,7 +57,7 @@
   3. **首字后不静默重路由**：一旦 token 流向客户端，上游中断 = SSE 错误事件（绝不重放，避免文本重复/跳变）——对应"用户尽可能无感"的正确边界：无感窗口只在首字前；
   4. 全部失败才返回错误；官方余额不足（402）立即终止不换池（换池救不了账户问题）；
   5. 客户端断开（停止生成/关页）→ 取消上游 → **已生成部分照常落库**（与 Node 行为一致，停止≠丢弃）；客户端取消**不属于上游故障**：不记健康失败、不给任何条目上冷却、不虚增 switches，后续条目不再尝试；
-  6. **首字后 failover 窗口关闭**：任何 token 已到达客户端后再遇到上游失败，立即返回 STREAM_ERROR，**绝不重放后续条目**（否则客户端收到 "AAABBB" 式拼接）；
+  6. **首字后 failover 窗口关闭**：任何 token 已到达客户端后再遇到上游失败，立即返回 STREAM_ERROR，**绝不重放后续条目**（否则客户端收到 "AAABBB" 式拼接）；该失败仍计入当事条目的健康档案（总是断流的坏模型不得永久占据首字窗口）；
 - 否决：首字后也切（会文本重复）；每条目独立重试×3（放大延迟，Plan 不要）。
 
 ### D5 健康度 = 内存计数 + 指数冷却 + 自然复探测
@@ -79,7 +79,7 @@
 - **偏差声明（对 Plan 二）**：不引入 shadcn/ui，理由如上。此为有意识取舍，请评审裁定。
 
 ### D9 安全与秘钥
-- JWT secret 沿用 env（未设则警告 + fallback，与 Node 行为一致）；bcrypt 不明文存密码；SQL 全部参数化（无字符串拼接用户输入进 SQL）；body 1MB 上限；SSE 行 1MB 上限；Bot 不碰 SQL，走 service 层，白名单 TG_ADMIN_IDS，操作走同一套业务校验；敏感管理操作（封禁/解封/改会员/重置密码/生成邀请码/公告/开关）统一在 service 层打 `[audit]` 结构化日志（Bot 路径额外带 `operator=tg:<id>`，未授权命令也留痕）；secret 只存服务器 `.env`（600），git 内只有 `.env.example`。
+- JWT secret 沿用 env（未设则警告 + fallback，与 Node 行为一致）；bcrypt 不明文存密码；SQL 全部参数化（无字符串拼接用户输入进 SQL）；body 1MB 上限；SSE 行 1MB 上限；Bot 不碰 SQL，走 service 层，白名单 TG_ADMIN_IDS，操作走同一套业务校验；敏感管理操作（封禁/解封/改会员/重置密码/生成邀请码/公告/开关）统一在 service 层打 `[audit]` 结构化日志（Bot 路径 operator=`tg:<id>` 透传进同一条 [audit] 行，未授权命令在 [tg-audit] 留痕）；secret 只存服务器 `.env`（600），git 内只有 `.env.example`。
 
 ### D10 部署与回滚（分层爆炸半径）
 - 构建：WSL `docker build`（go.mod 层缓存 + goproxy.cn），`docker save | gzip | ssh docker load`（yun1 内存红线禁本机构建）；
@@ -103,7 +103,7 @@ Vue3 前端(nginx) ──/api──> Go 单体（net/http）
 SQLite（同 schema + 增量列/表）    Telegram Bot ──> service 层（不碰 SQL）
 ```
 
-## 4. 关键语义精确定义（八断言，逐条映射自动化测试）
+## 4. 关键语义精确定义（十断言，逐条映射自动化测试）
 
 | # | 断言 | 锁定测试 |
 |---|---|---|

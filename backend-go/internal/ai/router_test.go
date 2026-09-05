@@ -332,6 +332,36 @@ func TestNoReplayAfterFirstToken(t *testing.T) {
 	if snap := r.HealthSnapshot(); snap[1].Successes != 0 {
 		t.Fatalf("official must NOT be used after window closed, got %d successes", snap[1].Successes)
 	}
+	if snap := r.HealthSnapshot(); snap[0].Failures != 1 {
+		t.Fatalf("mid-stream death must count as a failure, got %+v", snap[0])
+	}
+}
+
+// Total timeout (90s in prod, injected small here) surfaces MODEL_TIMEOUT
+// with the Node-contract message via the SSE mapping.
+func TestTotalTimeoutSurfacesModelTimeout(t *testing.T) {
+	silent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Headers + a keepalive comment line, then silence: the router must
+		// cut the attempt at the total timeout while we stay quiet.
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, ": ping\n\n")
+		w.(http.Flusher).Flush()
+		time.Sleep(2 * time.Second) // outlives the 200ms total timeout
+	}))
+	defer silent.Close()
+
+	cfg := testCfg([]config.ProviderEntry{entry("official", silent.URL, true)}, "official")
+	cfg.AITotalTimeoutMs = 200
+	r := NewRouter(cfg)
+	start := time.Now()
+	_, merr := r.Stream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, nil, nil)
+	if merr == nil || merr.Code != "MODEL_TIMEOUT" || merr.Message != "模型响应超时，请重试" {
+		t.Fatalf("expected MODEL_TIMEOUT, got %+v", merr)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatalf("total timeout must fire promptly, took %s", time.Since(start))
+	}
 }
 
 // R1 fix: fallback entry must be exempt from the 2s first-token watchdog —
