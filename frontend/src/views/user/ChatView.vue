@@ -175,11 +175,17 @@ onMounted(async () => {
           <div class="messageMeta">
             <span class="messageRole">{{ msg.role === 'user' ? '你' : 'Thallo' }}</span>
             <div class="messageBubble">
-              <div
-                v-if="msg.role === 'assistant'"
-                class="markdownBody"
-                v-html="renderAssistantContent(msg.content)"
-              />
+              <div v-if="msg.role === 'assistant'">
+                <span
+                  v-if="chatStore.streaming && msg.id === chatStore.streamingAssistantId"
+                  class="streamingPlainText"
+                >{{ msg.content }}</span>
+                <div
+                  v-else
+                  class="markdownBody"
+                  v-html="renderAssistantContent(msg.content)"
+                />
+              </div>
               <p v-else>{{ msg.content }}</p>
             </div>
             <time>{{ formatTime(msg.createdAt) }}</time>
@@ -380,6 +386,15 @@ onMounted(async () => {
   line-height: 1.72;
   color: var(--text-main);
   word-break: break-word;
+}
+
+.streamingPlainText {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 15px;
+  line-height: 1.72;
+  color: var(--text-main);
 }
 
 .markdownBody :deep(p),

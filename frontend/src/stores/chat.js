@@ -13,6 +13,7 @@ export const useChatStore = defineStore('chat', {
     isDraftConversation: true,
     loading: false,
     streaming: false,
+    streamingAssistantId: null,
     streamSource: null,
     uiResetKey: 0
   }),
@@ -27,6 +28,7 @@ export const useChatStore = defineStore('chat', {
       this.isDraftConversation = true
       this.loading = false
       this.streaming = false
+      this.streamingAssistantId = null
       this.streamSource = null
       clearDraftSessionFlag()
       this.uiResetKey += 1
@@ -143,20 +145,43 @@ export const useChatStore = defineStore('chat', {
       this.messagesMap[conversationId].push(assistantMessage)
       const assistantMessageId = assistantMessage.id
       this.streaming = true
+      this.streamingAssistantId = assistantMessageId
+
+      let streamBuffer = ''
+      let streamRafId = null
+      const flushStreamBuffer = () => {
+        streamRafId = null
+        const delta = streamBuffer
+        streamBuffer = ''
+        if (delta) {
+          appendAssistantDelta(this.messagesMap[conversationId], assistantMessageId, delta)
+        }
+      }
+      const scheduleFlush = () => {
+        if (streamRafId) {
+          return
+        }
+        streamRafId = requestAnimationFrame(flushStreamBuffer)
+      }
 
       return new Promise((resolve, reject) => {
         this.streamSource = streamMessage(conversationId, content, {
           onDelta: (delta) => {
-            appendAssistantDelta(this.messagesMap[conversationId], assistantMessageId, delta)
+            streamBuffer += delta
+            scheduleFlush()
           },
           onDone: () => {
+            flushStreamBuffer()
             this.streaming = false
+            this.streamingAssistantId = null
             this.streamSource = null
             this.fetchConversations()
             resolve(true)
           },
           onError: (error) => {
+            flushStreamBuffer()
             this.streaming = false
+            this.streamingAssistantId = null
             this.streamSource = null
             const currentMessages = this.messagesMap[conversationId] || []
             removeEmptyAssistantPlaceholder(currentMessages, assistantMessageId)
