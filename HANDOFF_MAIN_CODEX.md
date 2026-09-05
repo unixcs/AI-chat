@@ -11,11 +11,12 @@
 
 - 项目：`https://github.com/unixcs/AI-chat`
 - 本地工作区：`/mnt/vps/yun/AI-chat/`
-- 本地 master：`26f8749`
+- 本地 master：`2e695db`
   - 其中包含：`89b3a94`（nginx 超时/DNS持久化/分页/轮询降频/DEEPSEEK_EXTRA_BODY 支持）
   - `d748ab6`（文档 + `.env.example` 说明）
   - `a27f601`（主会话交接文档）
   - `26f8749`（流式渲染卡顿修复：纯文本先显示 + delta 按帧合并）
+  - `2e695db`（交接文档补充）
 - **本地未 push**，GitHub 仍是最旧状态，**服务器生产 /opt/AI-chat 也还是旧代码**。
 
 ## 3. 已部署的测试实例（服务器）
@@ -67,7 +68,7 @@ docker compose up -d --force-recreate backend
 - `frontend/src/stores/chat.js`：SSE delta 先用 `requestAnimationFrame` 合并，再一次性追加；记录当前正在流式回复的消息 id。
 - `frontend/src/views/user/ChatView.vue`：流式期间对新回复先按**纯文本**显示，避免每个 delta 都重新渲染整段 Markdown；流式结束后再整体渲染 Markdown。
 
-⚠️ 该前端修复目前只在本地，**还没有同步到测试容器 / 生产容器**。下一步部署时需把前端镜像重建并刷新浏览器缓存（`.js` hash 会变）。
+⚠️ 该前端修复已同步到测试容器（8189），**生产 8181 尚未部署**。部署生产时需重新构建 `frontend` 镜像并刷新浏览器缓存（`.js` hash 会变）。
 
 ## 6. 本地已完成的代码改动列表
 
