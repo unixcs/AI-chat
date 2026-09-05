@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { createConversation, getConversations, getMessages, sendMessage, streamMessage } from '../api/chat'
+import { createConversation, deleteConversation as apiDeleteConversation, getConversations, getMessages, sendMessage, streamMessage } from '../api/chat'
 import router from '../router'
 import { clearDraftSessionFlag, storeDraftSessionFlag } from '../utils/chat-entry'
 import { appendAssistantDelta, removeEmptyAssistantPlaceholder } from './chat-streaming'
@@ -78,6 +78,14 @@ export const useChatStore = defineStore('chat', {
       this.isDraftConversation = false
       clearDraftSessionFlag()
       return data.data.id
+    },
+    async deleteConversation(conversationId) {
+      await apiDeleteConversation(conversationId)
+      this.list = this.list.filter((item) => item.id !== conversationId)
+      delete this.messagesMap[conversationId]
+      if (this.activeConversationId === conversationId) {
+        this.startDraftConversation()
+      }
     },
     async addConversation() {
       this.startDraftConversation()

@@ -4,6 +4,10 @@ export const getConversations = () => {
   return http.get('/chat/conversations', { headers: { needUserAuth: true } })
 }
 
+export const deleteConversation = (conversationId) => {
+  return http.delete(`/chat/conversations/${conversationId}`, { headers: { needUserAuth: true } })
+}
+
 export const createConversation = () => {
   return http.post('/chat/conversations', {}, { headers: { needUserAuth: true } })
 }

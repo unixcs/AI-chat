@@ -20,7 +20,8 @@ const menuGroups = [
     items: [
       { label: '用户管理', path: '/admin/users' },
       { label: '角色管理', path: '/admin/roles' },
-      { label: '菜单管理', path: '/admin/menus' }
+      { label: '菜单管理', path: '/admin/menus' },
+      { label: 'AI 状态', path: '/admin/ai' }
     ]
   },
   {
@@ -29,7 +30,8 @@ const menuGroups = [
       { label: '会员管理', path: '/admin/members' },
       { label: '兑换码管理', path: '/admin/redeem-codes' },
       { label: '兑换记录', path: '/admin/redeem-records' },
-      { label: '会话管理', path: '/admin/conversations' }
+      { label: '会话管理', path: '/admin/conversations' },
+      { label: '公告管理', path: '/admin/announcements' }
     ]
   }
 ]

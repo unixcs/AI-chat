@@ -95,7 +95,7 @@ onMounted(async () => {
           <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
           <span v-else class="themeIcon moon"></span>
         </button>
-        <button class="ghostBtn logoutBtn" @click="logout">退出登录</button>
+        <button class="ghostBtn logoutBtn" @click="logout">退出<br />登录</button>
       </div>
     </aside>
 
@@ -334,7 +334,7 @@ onMounted(async () => {
     position: fixed;
     left: 14px;
     top: 14px;
-    width: clamp(116px, 38vw, 168px);
+    width: clamp(96px, 33.333vw, 140px);
     height: calc(100dvh - 28px);
     transform: translateX(calc(-100% - 20px));
     transition: transform 0.22s ease;
@@ -383,7 +383,7 @@ onMounted(async () => {
     min-height: 40px;
     padding: 0 12px;
     font-size: 13px;
-    line-height: 1;
+    line-height: 1.3;
     white-space: nowrap;
   }
 

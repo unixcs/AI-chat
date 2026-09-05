@@ -1,0 +1,37 @@
+# AI-chat Go 重构测试部署（yun1 测试实例）
+# 端口约定沿用项目惯例：前端 8189 → 80，后端 3002 → 3001
+# 与现有 ai-chat-frontend/backend（8181/3001 二节点）完全隔离：
+#   - 独立 compose 项目名 ai-chat-go-test
+#   - 独立容器名 ai-chat-go-*
+#   - 独立数据目录 /opt/ai-chat-go-test/data（全新初始化，不碰二节点数据）
+# 注意：不要在本机构建镜像（内存红线），镜像在 WSL 构建后 docker load 进来。
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ai-chat-go-backend:latest
+    container_name: ai-chat-go-backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      SQLITE_PATH: /app/data/data.sqlite
+    ports:
+      - "3002:3001"
+    volumes:
+      - ./data:/app/data
+    dns:
+      - 223.5.5.5
+      - 119.29.29.29
+
+  frontend:
+    build:
+      context: ./frontend
+    image: ai-chat-go-frontend:latest
+    container_name: ai-chat-go-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "8189:80"

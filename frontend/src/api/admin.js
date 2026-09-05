@@ -93,3 +93,31 @@ export const getAdminConversationMessages = (conversationId) => {
     headers: { needAdminAuth: true }
   })
 }
+
+export const getAdminAnnouncements = () => {
+  return http.get('/admin/announcements', { headers: { needAdminAuth: true } })
+}
+
+export const createAdminAnnouncement = (payload) => {
+  return http.post('/admin/announcements', payload, { headers: { needAdminAuth: true } })
+}
+
+export const updateAdminAnnouncement = (id, payload) => {
+  return http.put(`/admin/announcements/${id}`, payload, { headers: { needAdminAuth: true } })
+}
+
+export const deleteAdminAnnouncement = (id) => {
+  return http.delete(`/admin/announcements/${id}`, { headers: { needAdminAuth: true } })
+}
+
+export const getAdminAiStatus = () => {
+  return http.get('/admin/ai/status', { headers: { needAdminAuth: true } })
+}
+
+export const getAdminSettings = () => {
+  return http.get('/admin/settings', { headers: { needAdminAuth: true } })
+}
+
+export const updateAdminSettings = (payload) => {
+  return http.put('/admin/settings', payload, { headers: { needAdminAuth: true } })
+}

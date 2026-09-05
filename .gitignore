@@ -28,3 +28,5 @@ Thumbs.db
 # OpenCode local project config
 AGENTS.md
 opencode.json
+backend-go/.env
+backend-go/data.sqlite*

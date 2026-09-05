@@ -1,10 +1,12 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
 import { consumeFreshChatFlag, hasDraftSessionFlag, shouldStartFreshOnChatEntry } from '../../utils/chat-entry'
 import { renderMarkdownToSafeHtml } from '../../utils/markdown'
+import { copyText } from '../../utils/clipboard'
+import { updatePreferences, getCurrentAnnouncement, ackAnnouncement } from '../../api/user-extras'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -14,12 +16,49 @@ const showHistoryDrawer = ref(false)
 const messageListRef = ref(null)
 const composerTextareaRef = ref(null)
 
+// 桌面端侧栏 vs 移动端抽屉
+const isDesktop = ref(window.innerWidth > 960)
+
+// 复制反馈：记录刚复制成功的消息 id，1.5s 后还原
+const copiedMessageId = ref(null)
+let copiedTimer = null
+
+// 智能滚动：只有用户本来就在底部时才跟随输出
+const isNearBottom = ref(true)
+
+// 回答模式（长度 × 风格）
+const showAnswerPrefs = ref(false)
+const answerLength = ref(authStore.profile?.answerLength || 'standard')
+const answerStyle = ref(authStore.profile?.answerStyle || 'standard')
+const answerLengthOptions = [
+  { value: 'concise', label: '精简' },
+  { value: 'standard', label: '适中' },
+  { value: 'detailed', label: '详细' }
+]
+const answerStyleOptions = [
+  { value: 'plain', label: '大白话' },
+  { value: 'standard', label: '标准' },
+  { value: 'professional', label: '专业' },
+  { value: 'rigorous', label: '严谨' },
+  { value: 'encouraging', label: '鼓励' }
+]
+
+// 一次性公告
+const announcement = ref(null)
+const announcementTitle = ref('')
+
 const activeMessages = computed(() => {
   const id = chatStore.activeConversationId
   if (!id) {
     return []
   }
   return chatStore.messagesMap[id] || []
+})
+
+// 流式过程中最后一个消息的内容长度，作为跟随滚动的信号
+const lastMessageLength = computed(() => {
+  const last = activeMessages.value[activeMessages.value.length - 1]
+  return last ? last.content.length : 0
 })
 
 const canChat = computed(() => {
@@ -40,10 +79,22 @@ const renderAssistantContent = (content) => {
 
 const selectConversation = async (conversationId) => {
   await chatStore.fetchMessages(conversationId)
+  isNearBottom.value = true
+  await scrollToBottom(true)
 }
 
 const addConversation = async () => {
   await chatStore.addConversation()
+  inputValue.value = ''
+  focusComposer()
+}
+
+const removeConversation = async (conversationId) => {
+  try {
+    await chatStore.deleteConversation(conversationId)
+  } catch (error) {
+    errorText.value = error.response?.data?.message || '删除失败'
+  }
 }
 
 const openHistoryDrawer = () => {
@@ -58,13 +109,33 @@ const stopGenerating = () => {
   chatStore.stopStreaming()
 }
 
-const scrollToBottom = async () => {
+const focusComposer = async () => {
+  await nextTick()
+  composerTextareaRef.value?.focus()
+}
+
+const messageIsNearBottom = (el) => {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
+const scrollToBottom = async (force = false) => {
   await nextTick()
   const el = messageListRef.value
   if (!el) {
     return
   }
+  if (!force && !isNearBottom.value) {
+    return
+  }
   el.scrollTop = el.scrollHeight
+}
+
+const onMessageScroll = () => {
+  const el = messageListRef.value
+  if (!el) {
+    return
+  }
+  isNearBottom.value = messageIsNearBottom(el)
 }
 
 const syncComposerHeight = async () => {
@@ -100,10 +171,11 @@ const submitMessage = async () => {
   }
 
   inputValue.value = ''
+  isNearBottom.value = true
   await syncComposerHeight()
   try {
     const streamPromise = chatStore.postStreamMessage(content)
-    await scrollToBottom()
+    await scrollToBottom(true)
     await streamPromise
   } catch (error) {
     errorText.value = error.message || '请联系管理员 ⚠️E0'
@@ -124,12 +196,88 @@ const onComposerKeydown = (event) => {
   submitMessage()
 }
 
+const copyMessage = async (msg) => {
+  const ok = await copyText(msg.content)
+  if (!ok) {
+    errorText.value = '复制失败，请长按文本手动复制'
+    return
+  }
+  copiedMessageId.value = msg.id
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => {
+    copiedMessageId.value = null
+  }, 1500)
+}
+
+const setAnswerLength = async (value) => {
+  answerLength.value = value
+  await persistPreferences()
+}
+
+const setAnswerStyle = async (value) => {
+  answerStyle.value = value
+  await persistPreferences()
+}
+
+const persistPreferences = async () => {
+  try {
+    await updatePreferences({ answerLength: answerLength.value, answerStyle: answerStyle.value })
+    if (authStore.profile) {
+      authStore.setProfile({
+        ...authStore.profile,
+        answerLength: answerLength.value,
+        answerStyle: answerStyle.value
+      })
+    }
+  } catch (error) {
+    errorText.value = error.response?.data?.message || '回答模式保存失败'
+  }
+}
+
+const acknowledgeAnnouncement = async () => {
+  const current = announcement.value
+  announcement.value = null
+  if (!current) {
+    return
+  }
+  try {
+    await ackAnnouncement(current.id)
+  } catch (error) {
+    // 确认失败不打扰用户：下次进入再提示
+  }
+}
+
+const handleResize = () => {
+  isDesktop.value = window.innerWidth > 960
+  if (isDesktop.value) {
+    showHistoryDrawer.value = false
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('resize', handleResize)
+
+  // 未读公告（一次性展示）
+  try {
+    const { data } = await getCurrentAnnouncement()
+    if (data?.data) {
+      announcement.value = data.data
+    }
+  } catch (error) {
+    // 公告拉取失败不影响聊天
+  }
+
   const startFresh = shouldStartFreshOnChatEntry({
     hasFreshChatFlag: consumeFreshChatFlag(),
     hasDraftSession: hasDraftSessionFlag()
   })
   await chatStore.fetchConversations({ startFresh })
+  await syncComposerHeight()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  clearTimeout(copiedTimer)
 })
 
 watch(
@@ -146,15 +294,54 @@ watch(inputValue, () => {
   syncComposerHeight()
 })
 
-onMounted(async () => {
-  await syncComposerHeight()
+// 输出跟随时持续滚到底部；用户上滑后不打扰
+watch(lastMessageLength, async () => {
+  if (chatStore.streaming && isNearBottom.value) {
+    await scrollToBottom(true)
+  }
 })
 </script>
 
 <template>
-  <section class="chatStage">
+  <section class="chatStage" :class="{ withSidebar: isDesktop }">
+    <aside v-if="isDesktop" class="historySidebar card panelShell">
+      <div class="historyDrawerHead">
+        <div>
+          <span class="sectionLabel">History</span>
+          <h3>历史对话</h3>
+        </div>
+        <button class="primaryBtn newChatBtn" @click="addConversation">新建</button>
+      </div>
+      <div class="historyList">
+        <div
+          v-for="item in chatStore.list"
+          :key="item.id"
+          class="historyItem"
+          :class="{ active: chatStore.activeConversationId === item.id }"
+          role="button"
+          tabindex="0"
+          @click="selectConversation(item.id)"
+          @keydown.enter="selectConversation(item.id)"
+        >
+          <span class="historyTitle">{{ item.title }}</span>
+          <small>{{ formatTime(item.updatedAt) }}</small>
+          <button
+            class="historyDeleteBtn"
+            title="删除对话"
+            aria-label="删除对话"
+            @click.stop="removeConversation(item.id)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9zm4 3v7h2v-7h-2zm4 0v7h2v-7h-2z" />
+            </svg>
+          </button>
+        </div>
+        <p v-if="chatStore.list.length === 0" class="mutedText historyEmpty">还没有对话记录</p>
+      </div>
+    </aside>
+
     <section class="chatPanel card panelShell">
-      <div ref="messageListRef" class="messageViewport">
+      <div ref="messageListRef" class="messageViewport" @scroll="onMessageScroll">
         <div v-if="activeMessages.length === 0" class="emptyState">
           <h2>告诉我你有什么想法</h2>
           <p class="emptyHint">开始新的对话吧</p>
@@ -188,7 +375,24 @@ onMounted(async () => {
               </div>
               <p v-else>{{ msg.content }}</p>
             </div>
-            <time>{{ formatTime(msg.createdAt) }}</time>
+            <div class="messageFooter">
+              <time>{{ formatTime(msg.createdAt) }}</time>
+              <button
+                class="copyBtn"
+                :class="{ copied: copiedMessageId === msg.id }"
+                :title="copiedMessageId === msg.id ? '已复制' : '复制'"
+                :aria-label="copiedMessageId === msg.id ? '已复制' : '复制消息'"
+                @click="copyMessage(msg)"
+              >
+                <svg v-if="copiedMessageId !== msg.id" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3h11a1 1 0 0 1 1 1v12h-2V5H8V3zM5 7h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1 2v10h9V9H6z" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+                </svg>
+                <span class="copyLabel">{{ copiedMessageId === msg.id ? '已复制' : '复制' }}</span>
+              </button>
+            </div>
           </div>
         </article>
 
@@ -198,6 +402,33 @@ onMounted(async () => {
       </div>
 
       <div class="composerShell">
+        <div v-if="showAnswerPrefs" class="answerPrefsPanel card">
+          <div class="prefGroup">
+            <span class="prefLabel">回答长度</span>
+            <div class="prefChips">
+              <button
+                v-for="opt in answerLengthOptions"
+                :key="opt.value"
+                class="prefChip"
+                :class="{ active: answerLength === opt.value }"
+                @click="setAnswerLength(opt.value)"
+              >{{ opt.label }}</button>
+            </div>
+          </div>
+          <div class="prefGroup">
+            <span class="prefLabel">回答风格</span>
+            <div class="prefChips">
+              <button
+                v-for="opt in answerStyleOptions"
+                :key="opt.value"
+                class="prefChip"
+                :class="{ active: answerStyle === opt.value }"
+                @click="setAnswerStyle(opt.value)"
+              >{{ opt.label }}</button>
+            </div>
+          </div>
+        </div>
+
         <div class="composerSurface">
           <textarea
             ref="composerTextareaRef"
@@ -222,14 +453,14 @@ onMounted(async () => {
               <span class="historyBtnLabel">历史</span>
             </button>
             <button
-              class="circleIconBtn sendIconBtn"
-              :disabled="chatStore.streaming"
-              :title="chatStore.streaming ? '生成中' : '发送消息'"
-              :aria-label="chatStore.streaming ? '生成中' : '发送消息'"
-              @click="submitMessage"
+              class="circleIconBtn prefIconBtn"
+              :class="{ active: showAnswerPrefs }"
+              title="回答模式"
+              aria-label="回答模式"
+              @click="showAnswerPrefs = !showAnswerPrefs"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 20l18-8L3 4v6l12 2-12 2v6z" />
+                <path d="M4 5h16v2H4V5zm0 6h10v2H4v-2zm0 6h7v2H4v-2zm13-.2 2.1-2.1 1.4 1.4L18.4 18l2.1 2.1-1.4 1.4L17 19.4l-2.1 2.1-1.4-1.4 2.1-2.1-2.1-2.1 1.4-1.4 2.1 2.1z" />
               </svg>
             </button>
             <button
@@ -241,6 +472,17 @@ onMounted(async () => {
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 7h10v10H7z" />
+              </svg>
+            </button>
+            <button
+              v-else
+              class="circleIconBtn sendIconBtn"
+              title="发送消息"
+              aria-label="发送消息"
+              @click="submitMessage"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 20l18-8L3 4v6l12 2-12 2v6z" />
               </svg>
             </button>
           </div>
@@ -263,17 +505,40 @@ onMounted(async () => {
           </div>
         </div>
 
-        <button
+        <div
           v-for="item in chatStore.list"
           :key="item.id"
           class="historyItem"
           :class="{ active: chatStore.activeConversationId === item.id }"
+          role="button"
+          tabindex="0"
           @click="selectConversation(item.id); closeHistoryDrawer()"
+          @keydown.enter="selectConversation(item.id); closeHistoryDrawer()"
         >
-          <span>{{ item.title }}</span>
+          <span class="historyTitle">{{ item.title }}</span>
           <small>{{ formatTime(item.updatedAt) }}</small>
-        </button>
+          <button
+            class="historyDeleteBtn"
+            title="删除对话"
+            aria-label="删除对话"
+            @click.stop="removeConversation(item.id)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9zm4 3v7h2v-7h-2zm4 0v7h2v-7h-2z" />
+            </svg>
+          </button>
+        </div>
+        <p v-if="chatStore.list.length === 0" class="mutedText historyEmpty">还没有对话记录</p>
       </aside>
+    </div>
+
+    <div v-if="announcement" class="announcementMask" @click.self="acknowledgeAnnouncement">
+      <div class="announcementPanel card panelShell" role="dialog" aria-modal="true">
+        <span class="sectionLabel">Announcement</span>
+        <h3>{{ announcement.title || '系统公告' }}</h3>
+        <p class="announcementContent">{{ announcement.content }}</p>
+        <button class="primaryBtn announcementAck" @click="acknowledgeAnnouncement">我知道了</button>
+      </div>
     </div>
   </section>
 </template>
@@ -284,6 +549,26 @@ onMounted(async () => {
   height: calc(100dvh - 44px);
   min-height: 0;
   width: 100%;
+}
+
+.chatStage.withSidebar {
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.historySidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 18px;
+}
+
+.historyList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 6px;
 }
 
 .chatPanel {
@@ -375,10 +660,53 @@ onMounted(async () => {
   line-height: 1.75;
 }
 
-.messageRow time {
+.messageFooter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.messageFooter time {
   display: block;
   font-size: 12px;
   color: var(--text-soft);
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-soft);
+  cursor: pointer;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.copyBtn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.copyBtn:hover {
+  transform: translateY(-1px);
+  color: var(--text-main);
+  border-color: var(--line-strong);
+}
+
+.copyBtn.copied {
+  color: #3f7d4e;
+  border-color: rgba(63, 125, 78, 0.35);
+  background: rgba(63, 125, 78, 0.08);
+}
+
+.copyLabel {
+  font-weight: 600;
 }
 
 .markdownBody {
@@ -629,19 +957,9 @@ onMounted(async () => {
   background: linear-gradient(135deg, #4f5d71 0%, #424f61 100%);
 }
 
-.sendIconBtn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.historyIconBtn {
-  color: var(--text-soft);
-}
-
-.historyBtnLabel {
-  display: none;
+.prefIconBtn.active {
+  border-color: rgba(95, 111, 133, 0.45);
+  background: rgba(95, 111, 133, 0.14);
 }
 
 .stopIconBtn {
@@ -653,6 +971,52 @@ onMounted(async () => {
 .composerError {
   margin: 10px 2px 0;
   font-size: 12px;
+}
+
+.answerPrefsPanel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+}
+
+.prefGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prefLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+  min-width: 60px;
+}
+
+.prefChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prefChip {
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-soft);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.prefChip.active {
+  border-color: rgba(95, 111, 133, 0.45);
+  background: rgba(95, 111, 133, 0.14);
+  color: var(--text-main);
+  font-weight: 700;
 }
 
 .historyDrawerMask {
@@ -692,18 +1056,105 @@ onMounted(async () => {
 }
 
 .historyItem {
+  position: relative;
   width: 100%;
   border: 1px solid var(--line-soft);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.42);
   margin-bottom: 10px;
-  padding: 15px 16px;
+  padding: 15px 44px 15px 16px;
   text-align: left;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   cursor: pointer;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.historyTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyDeleteBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.historyDeleteBtn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.historyDeleteBtn:hover {
+  color: var(--danger, #c65d4b);
+  background: rgba(198, 93, 75, 0.08);
+  border-color: rgba(198, 93, 75, 0.2);
+}
+
+.historyEmpty {
+  text-align: center;
+  padding: 18px 0;
+  font-size: 13px;
+}
+
+.announcementMask {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: grid;
+  place-items: center;
+  z-index: 120;
+  padding: 20px;
+}
+
+.announcementPanel {
+  width: min(460px, 94vw);
+  padding: 26px 24px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.announcementPanel h3 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text-title);
+}
+
+.announcementContent {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text-main);
+  line-height: 1.7;
+  font-size: 14px;
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.announcementAck {
+  justify-self: end;
+}
+
+.newChatBtn {
+  flex: 0 0 auto;
 }
 
 [data-theme='dark'] .historyItem {
@@ -723,6 +1174,7 @@ onMounted(async () => {
 
 .historyItem small {
   color: var(--text-soft);
+  flex: 0 0 auto;
 }
 
 .historyItem.active {
@@ -758,6 +1210,17 @@ onMounted(async () => {
     max-width: 100%;
     border-radius: 20px;
     padding: 14px 15px;
+  }
+
+  .copyBtn {
+    padding: 7px 12px;
+    font-size: 13px;
+    border-radius: 14px;
+  }
+
+  .copyBtn svg {
+    width: 15px;
+    height: 15px;
   }
 
   .composerSurface {
