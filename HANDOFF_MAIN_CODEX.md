@@ -1,7 +1,7 @@
 # 交接文档：AI-chat 修复与测试环境
 
 > 写给主会话 Codex / 后续接手者。
-> 更新时间：2026-09-05 15:00 左右。
+> 更新时间：2026-09-05 15:20 左右。
 
 ## 1. 一句话现状
 
@@ -11,9 +11,11 @@
 
 - 项目：`https://github.com/unixcs/AI-chat`
 - 本地工作区：`/mnt/vps/yun/AI-chat/`
-- 本地 master：`d748ab6`
+- 本地 master：`26f8749`
   - 其中包含：`89b3a94`（nginx 超时/DNS持久化/分页/轮询降频/DEEPSEEK_EXTRA_BODY 支持）
-  - 和 `d748ab6`（文档 + `.env.example` 说明）
+  - `d748ab6`（文档 + `.env.example` 说明）
+  - `a27f601`（主会话交接文档）
+  - `26f8749`（流式渲染卡顿修复：纯文本先显示 + delta 按帧合并）
 - **本地未 push**，GitHub 仍是最旧状态，**服务器生产 /opt/AI-chat 也还是旧代码**。
 
 ## 3. 已部署的测试实例（服务器）
@@ -53,8 +55,19 @@ docker compose up -d --force-recreate backend
 - 探针请求结果：
   - `firstTokenMs: ~0.4~0.8s`
   - `totalMs: ~5.5~6.8s`
-  - `hasReasoning: false`
-  - `reasoningChars: 0`
+- `hasReasoning: false`
+- `reasoningChars: 0`
+
+## 5.1 新修复：流式输出“先冒 ** 然后卡住 1s 再全部出来”
+
+现象是后端 SSE 本身一直在小步推流（实测相邻 delta 间隔约 1~5ms），但前端把每个 delta 都拿去重新跑一次 `MarkdownIt + DOMPurify`，越长越卡，最终看起来像“先出现 **，然后等很久一次性显示所有内容”。
+
+本地已提交 `26f8749` 修复：
+
+- `frontend/src/stores/chat.js`：SSE delta 先用 `requestAnimationFrame` 合并，再一次性追加；记录当前正在流式回复的消息 id。
+- `frontend/src/views/user/ChatView.vue`：流式期间对新回复先按**纯文本**显示，避免每个 delta 都重新渲染整段 Markdown；流式结束后再整体渲染 Markdown。
+
+⚠️ 该前端修复目前只在本地，**还没有同步到测试容器 / 生产容器**。下一步部署时需把前端镜像重建并刷新浏览器缓存（`.js` hash 会变）。
 
 ## 6. 本地已完成的代码改动列表
 
