@@ -126,7 +126,8 @@ func (a *API) handleStream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if r.Context().Err() == nil {
-				sseWrite(flusher, w, mustJSON(map[string]any{"code": merr.Code, "error": merr.Message}))
+				code, message := sseErrorFor(merr)
+				sseWrite(flusher, w, mustJSON(map[string]any{"code": code, "error": message}))
 			}
 			streamErrCh <- merr
 			return
@@ -151,6 +152,26 @@ func (a *API) handleStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func clientHasContent(s string) bool { return s != "" }
+
+// sseErrorFor mirrors the Node backend's SSE error mapping verbatim
+// (backend/server.js catch block) so the frontend behaves identically.
+func sseErrorFor(merr *ai.ModelError) (string, string) {
+	switch merr.Code {
+	case "SESSION_KICKED":
+		return merr.Code, "账号已在其他设备登录"
+	case "MODEL_QUEUE_OVERFLOW", "MODEL_RATE_LIMIT":
+		return merr.Code, "当前请求较多，请稍后再试"
+	case "MODEL_TIMEOUT":
+		return merr.Code, "响应超时，请重试"
+	case "MODEL_INSUFFICIENT_BALANCE":
+		return merr.Code, "服务额度不足，请联系管理员"
+	default:
+		if merr.Message != "" {
+			return merr.Code, merr.Message
+		}
+		return "STREAM_ERROR", "模型调用失败"
+	}
+}
 
 func mustJSON(v any) string {
 	raw, _ := json.Marshal(v)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"sync"
 	"path/filepath"
 	"testing"
 )
@@ -153,5 +154,39 @@ func TestAddMonthsMatchesNodeSemantics(t *testing.T) {
 	got2 := AddMonths("2026-01-15T00:00:00.000Z", 1)
 	if got2 != "2026-02-15T00:00:00.000Z" {
 		t.Fatalf("AddMonths plain case: %s", got2)
+	}
+}
+
+// Concurrency CAS: exactly one of N concurrent redeems of the same code wins.
+func TestRedeemConcurrentDoubleSpend(t *testing.T) {
+	s := openTest(t)
+	hash, _ := HashPassword("secret1")
+	_ = s.CreateUser(userFixture("u1", "13800000001", hash))
+	_ = s.InsertRedeemCode(redeemFixture("c1", "VIP-TEST-CONCURRENT", 1))
+
+	const n = 8
+	winners := make(chan struct{}, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.Redeem("c1", "u1", "13800000001", "", AddMonths(Now(), 1)); err == nil {
+				winners <- struct{}{}
+			}
+		}()
+	}
+	wg.Wait()
+	close(winners)
+	count := 0
+	for range winners {
+		count++
+	}
+	if count != 1 {
+		t.Fatalf("exactly one concurrent redeem must win, got %d", count)
+	}
+	user, _ := s.GetUserByID("u1")
+	if user.MemberExpireAt == "" {
+		t.Fatal("winner must extend membership")
 	}
 }

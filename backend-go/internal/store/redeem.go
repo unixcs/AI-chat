@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"ai-chat-backend/internal/model"
 )
@@ -192,7 +193,7 @@ func (s *Store) ListRedeemRecords(page, pageSize int, phone, start, end string) 
 
 // ---------- conversations (admin) ----------
 
-func (s *Store) ListConversationsAdmin(page, pageSize int, phone, keyword string) ([]model.Conversation, int, error) {
+func (s *Store) ListConversationsAdmin(page, pageSize int, phone, keyword, search string) ([]model.Conversation, int, error) {
 	where := "WHERE 1=1"
 	args := []any{}
 	if phone != "" {
@@ -202,6 +203,14 @@ func (s *Store) ListConversationsAdmin(page, pageSize int, phone, keyword string
 	if keyword != "" {
 		where += " AND title LIKE ?"
 		args = append(args, "%"+keyword+"%")
+	}
+	// search matches title OR user phone OR any message content, SQL-side,
+	// so pagination counts matches the same way the Node backend did.
+	if search != "" {
+		lowered := strings.ToLower(search)
+		where += ` AND (title LIKE ? OR userId IN (SELECT id FROM users WHERE phone LIKE ?)
+			OR id IN (SELECT DISTINCT conversationId FROM messages WHERE lower(content) LIKE ?))`
+		args = append(args, "%"+lowered+"%", "%"+lowered+"%", "%"+lowered+"%")
 	}
 	var total int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM conversations `+where, args...).Scan(&total); err != nil {

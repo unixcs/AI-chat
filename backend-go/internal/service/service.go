@@ -98,7 +98,7 @@ func (s *Service) AuthUserForStream(token string) (*model.User, *ServiceError) {
 		return nil, &ServiceError{Status: 401, Code: "USER_AUTH_FAILED", Message: "用户鉴权失败"}
 	}
 	if claims.Type != "user" {
-		return nil, nil
+		return nil, &ServiceError{Status: 403, Code: "INVALID_USER_TOKEN", Message: "无效用户令牌"}
 	}
 	user, serr := s.validateUserSession(claims)
 	if serr != nil {
@@ -330,11 +330,25 @@ func (s *Service) RedeemOpen() bool {
 }
 
 func (s *Service) SetRegistrationOpen(open bool) error {
+	auditLog("toggle-registration", fmt.Sprintf("%t", open), "")
 	return s.Store.SetSetting("registrationOpen", fmt.Sprintf("%t", open))
 }
 
 func (s *Service) SetRedeemOpen(open bool) error {
+	auditLog("toggle-redeem", fmt.Sprintf("%t", open), "")
 	return s.Store.SetSetting("redeemOpen", fmt.Sprintf("%t", open))
+}
+
+// auditLog is the minimal audit trail for sensitive admin operations
+// (original Plan §19: 重要管理操作记录日志). Both the HTTP admin API and the
+// Telegram bot funnel their mutations through service methods, so this covers
+// both entry points; the bot additionally tags its operator Telegram ID.
+func auditLog(action, detail, operator string) {
+	by := operator
+	if by == "" {
+		by = "web-admin"
+	}
+	fmt.Printf("[audit] operator=%s action=%s detail=%s at=%s\n", by, action, detail, store.Now())
 }
 
 // ---------- misc ----------

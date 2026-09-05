@@ -289,3 +289,145 @@ func TestGatewayBudgetAllowsHealthySecondEntry(t *testing.T) {
 		t.Fatalf("healthy second entry must serve within budget, got %s", result.EntryName)
 	}
 }
+
+// R1 fix: after the first token reached the client, a dying entry must NOT
+// replay the remaining pool (client would see "AAABBB" concatenation).
+func TestNoReplayAfterFirstToken(t *testing.T) {
+	// A streams partial content, then its connection dies mid-stream.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher := w.(http.Flusher)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"AAA"}}]}`+"\n\n")
+		flusher.Flush()
+		// hijack and kill the connection abruptly
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("cannot hijack")
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn.Close()
+	}))
+	official := fakeUpstream(t, 0, chunks, http.StatusOK)
+	defer srv.Close()
+	defer official.Close()
+
+	pool := []config.ProviderEntry{entry("partial-dies", srv.URL, false), entry("official", official.URL, true)}
+	r := NewRouter(testCfg(pool, "gateway"))
+
+	var collected strings.Builder
+	_, merr := r.Stream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}},
+		func(delta string) { collected.WriteString(delta) }, nil)
+	if merr == nil {
+		t.Fatal("mid-stream death must surface an error")
+	}
+	if merr.Code != "STREAM_ERROR" {
+		t.Fatalf("expected STREAM_ERROR, got %s (%s)", merr.Code, merr.Message)
+	}
+	if collected.String() != "AAA" {
+		t.Fatalf("client must receive exactly the partial content, got %q", collected.String())
+	}
+	if snap := r.HealthSnapshot(); snap[1].Successes != 0 {
+		t.Fatalf("official must NOT be used after window closed, got %d successes", snap[1].Successes)
+	}
+}
+
+// R1 fix: fallback entry must be exempt from the 2s first-token watchdog —
+// an official API that starts streaming at 3s still serves (final safety net).
+func TestFallbackExemptFromFirstTokenWatchdog(t *testing.T) {
+	slowPool := fakeUpstream(t, 2*time.Second, chunks, http.StatusOK)  // burns itself, timeout at 400ms
+	lateOfficial := fakeUpstream(t, 3*time.Second, chunks, http.StatusOK) // first token at 3s > 2s watchdog
+	defer slowPool.Close()
+	defer lateOfficial.Close()
+
+	pool := []config.ProviderEntry{
+		entry("slowPool", slowPool.URL, false),
+		entry("official", lateOfficial.URL, true),
+	}
+	cfg := testCfg(pool, "gateway")
+	cfg.AIGatewayBudgetMs = 300 // exhausted → straight to official
+	r := NewRouter(cfg)
+
+	var collected strings.Builder
+	result, merr := r.Stream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}},
+		func(delta string) { collected.WriteString(delta) }, nil)
+	if merr != nil {
+		t.Fatalf("official fallback must not be cut by the first-token watchdog: %+v", merr)
+	}
+	if result.EntryName != "official" || collected.String() != "你好世界" {
+		t.Fatalf("unexpected result %+v %q", result, collected.String())
+	}
+}
+
+// R1 fix: client cancel must not poison health (no failures, no cooldowns,
+// no further entries tried) — stop-generation is not an upstream fault.
+func TestClientCancelNoHealthDamage(t *testing.T) {
+	dead := "http://127.0.0.1:1"
+	healthy := fakeUpstream(t, 0, chunks, http.StatusOK)
+	defer healthy.Close()
+
+	pool := []config.ProviderEntry{
+		entry("dead", dead, false),
+		entry("healthy", healthy.URL, false),
+		entry("official", healthy.URL, true),
+	}
+	cfg := testCfg(pool, "gateway")
+	r := NewRouter(cfg)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond) // let the first (dead) attempt start
+		cancel()
+	}()
+	_, merr := r.Stream(ctx, ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, nil, nil)
+	if merr == nil {
+		t.Fatal("cancelled request must return an error")
+	}
+	for _, snap := range r.HealthSnapshot() {
+		if snap.Failures != 0 || snap.ConsecFails != 0 || snap.CooldownSecs != 0 {
+			t.Fatalf("client cancel must not damage health: %+v", snap)
+		}
+	}
+}
+
+// Queue overflow surfaces the Node-compatible code/message. White-box: fill
+// the in-flight semaphore and the waiting queue, then the next Stream call
+// must be rejected without touching any upstream.
+func TestQueueOverflow(t *testing.T) {
+	cfg := testCfg([]config.ProviderEntry{entry("never-called", "http://127.0.0.1:1", false)}, "gateway")
+	cfg.ModelConcurrency = 1
+	cfg.ModelQueueMax = 1
+	r := NewRouter(cfg)
+
+	// occupy the single in-flight slot and the single waiting slot
+	r.sem <- struct{}{}
+	r.queued <- struct{}{}
+
+	_, merr := r.Stream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, nil, nil)
+	if merr == nil || merr.Code != "MODEL_QUEUE_OVERFLOW" {
+		t.Fatalf("expected MODEL_QUEUE_OVERFLOW, got %+v", merr)
+	}
+	if merr.Message != "当前请求较多，请稍后再试" {
+		t.Fatalf("message must match Node contract, got %q", merr.Message)
+	}
+	// stats must not count a rejected request as attempted work
+	if snap := r.StatsSnapshot(); snap["totalRequests"] != 1 {
+		t.Fatalf("totalRequests accounting: %v", snap)
+	}
+}
+
+// Official 402 (insufficient balance) terminates immediately — switching
+// entries cannot fix an account-level problem.
+func TestOfficial402StopsImmediately(t *testing.T) {
+	official := fakeUpstream(t, 0, chunks, http.StatusPaymentRequired)
+	defer official.Close()
+
+	p := []config.ProviderEntry{entry("dead", "http://127.0.0.1:1", false), entry("official", official.URL, true)}
+	r := NewRouter(testCfg(p, "gateway"))
+	_, merr := r.Stream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, nil, nil)
+	if merr == nil || merr.Code != "MODEL_INSUFFICIENT_BALANCE" {
+		t.Fatalf("expected MODEL_INSUFFICIENT_BALANCE, got %+v", merr)
+	}
+}

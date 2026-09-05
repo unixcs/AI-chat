@@ -124,6 +124,7 @@ func (b *Bot) handle(u telegramUpdate) {
 	chatID := u.Message.Chat.ID
 	fromID := u.Message.From.ID
 	if !b.isAdmin(fromID) {
+		log.Printf("[tg-audit] operator=tg:%d action=UNAUTHORIZED cmd=%q", fromID, u.Message.Text)
 		b.send(chatID, "未授权的 Telegram 账号。")
 		return
 	}
@@ -131,6 +132,7 @@ func (b *Bot) handle(u telegramUpdate) {
 	if text == "" {
 		return
 	}
+	log.Printf("[tg-audit] operator=tg:%d cmd=%q", fromID, text)
 	b.send(chatID, b.dispatch(text))
 }
 
@@ -219,7 +221,7 @@ func (b *Bot) cmdCodes(n int) string {
 }
 
 func (b *Bot) cmdUser(phone string) string {
-	user, err := b.svc.Store.GetUserByPhone(strings.TrimSpace(phone))
+	user, err := b.svc.LookupUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
 		return "用户不存在"
 	}
@@ -231,7 +233,7 @@ func (b *Bot) cmdUser(phone string) string {
 }
 
 func (b *Bot) cmdSetStatus(phone, status string) string {
-	user, err := b.svc.Store.GetUserByPhone(strings.TrimSpace(phone))
+	user, err := b.svc.LookupUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
 		return "用户不存在"
 	}

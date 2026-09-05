@@ -25,6 +25,7 @@ type env struct {
 	upstream *httptest.Server
 	store    *store.Store
 	cfg      *config.Config
+	svc      *service.Service
 }
 
 func newEnv(t *testing.T, upstreamChunks []string) *env {
@@ -66,7 +67,7 @@ func newEnv(t *testing.T, upstreamChunks []string) *env {
 	handler := New(svc, router)
 	server := httptest.NewServer(handler.Routes())
 	t.Cleanup(server.Close)
-	return &env{t: t, server: server, upstream: upstream, store: st, cfg: cfg}
+	return &env{t: t, server: server, upstream: upstream, store: st, cfg: cfg, svc: svc}
 }
 
 func fakeOpenAI(t *testing.T, chunks []string) *httptest.Server {

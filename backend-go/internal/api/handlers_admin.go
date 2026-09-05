@@ -233,27 +233,10 @@ func (a *API) handleAdminConversations(_ *model.User, w http.ResponseWriter, r *
 	keyword := queryString(r, "keyword")
 	search := queryString(r, "search")
 
-	result, serr := a.Svc.AdminConversations(page, pageSize, phone, keyword)
+	result, serr := a.Svc.AdminConversations(page, pageSize, phone, keyword, search)
 	if serr != nil {
 		fail(w, serr)
 		return
-	}
-	if search != "" {
-		var messageHitIDs map[string]bool
-		if ids, err := a.Svc.SearchConversationIDs(search); err == nil {
-			messageHitIDs = ids
-		}
-		lowered := lower(search)
-		if items, okv := result.Items.([]model.Conversation); okv {
-			filtered := make([]model.Conversation, 0, len(items))
-			for _, c := range items {
-				if contains(lower(c.Title), lowered) || contains(lower(c.UserPhone), lowered) || messageHitIDs[c.ID] {
-					filtered = append(filtered, c)
-				}
-			}
-			result.Items = filtered
-			result.Total = len(filtered)
-		}
 	}
 	ok(w, result)
 }

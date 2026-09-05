@@ -59,6 +59,7 @@ type entryHealth struct {
 	Timeouts       int64
 	LastFirstToken int64
 	EwmaFirstToken float64
+	EwmaTotal      float64
 }
 
 type Health struct {
@@ -91,7 +92,7 @@ func (h *Health) Available(name string, now time.Time) bool {
 	return now.After(h.get(name).CooldownUntil)
 }
 
-func (h *Health) RecordSuccess(name string, firstTokenMs int64) {
+func (h *Health) RecordSuccess(name string, firstTokenMs, totalMs int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	e := h.get(name)
@@ -105,6 +106,7 @@ func (h *Health) RecordSuccess(name string, firstTokenMs int64) {
 	} else {
 		e.EwmaFirstToken = e.EwmaFirstToken*0.7 + float64(firstTokenMs)*0.3
 	}
+	e.EwmaTotal = e.EwmaTotal*0.7 + float64(totalMs)*0.3
 }
 
 func (h *Health) RecordFailure(name string, isTimeout bool, msg string) {
@@ -144,6 +146,7 @@ type HealthSnapshot struct {
 	Timeouts       int64   `json:"timeouts"`
 	LastFirstToken int64   `json:"lastFirstTokenMs"`
 	EwmaFirstToken float64 `json:"ewmaFirstTokenMs"`
+	EwmaTotal      float64 `json:"ewmaTotalMs"`
 	LastErr        string  `json:"lastError,omitempty"`
 	CooldownSecs   int64   `json:"cooldownRemainingSecs"`
 }
@@ -163,6 +166,13 @@ type Stats struct {
 func (s *Stats) RecordRequest() {
 	s.mu.Lock()
 	s.totalRequests++
+	s.mu.Unlock()
+}
+
+// RecordGatewayAttempt counts every real (non-skipped) gateway entry attempt.
+func (s *Stats) RecordGatewayAttempt() {
+	s.mu.Lock()
+	s.gatewayRequests++
 	s.mu.Unlock()
 }
 
@@ -243,6 +253,7 @@ func (r *Router) HealthSnapshot() []HealthSnapshot {
 			Timeouts:       h.Timeouts,
 			LastFirstToken: h.LastFirstToken,
 			EwmaFirstToken: h.EwmaFirstToken,
+			EwmaTotal:      h.EwmaTotal,
 			LastErr:        h.LastErr,
 			Available:      now.After(h.CooldownUntil),
 		}
@@ -261,16 +272,36 @@ func (r *Router) HasAPIKey() bool                 { return r.cfg.AIAPIKey != "" 
 
 // Stream walks the pool in order. Every gateway entry gets a first-token
 // budget (~2s); once the cumulative gateway budget (~6s) is burnt, the official
-// DeepSeek entry runs with a full-length budget. Once a first token reaches the
-// client, no silent re-routing happens — mid-stream failures surface as errors.
-func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(string), onModel func(name string)) (*StreamResult, *ModelError) {
+// DeepSeek entry runs with a full-length budget (no first-token watchdog — the
+// official API is the final safety net and must never be cut by the 2s rule).
+// Once a first token reaches the client the failover window is closed: a
+// mid-stream failure surfaces as an error and MUST NOT replay remaining entries
+// (that would concatenate duplicated text).
+func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(string), onModel func(string)) (*StreamResult, *ModelError) {
 	start := time.Now()
 	r.stats.RecordRequest()
 
 	if err := r.acquireSlot(ctx); err != nil {
-		return nil, &ModelError{Code: "MODEL_QUEUE_OVERFLOW", Message: "当前请求较多，请稍后再试"}
+		switch {
+		case errors.Is(err, errQueueFull):
+			return nil, &ModelError{Code: "MODEL_QUEUE_OVERFLOW", Message: "当前请求较多，请稍后再试"}
+		case errors.Is(ctx.Err(), context.Canceled):
+			return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
+		default:
+			return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
+		}
 	}
 	defer func() { <-r.sem }()
+
+	// emitted tracks whether any content token already reached the client.
+	// After that point the failover window is closed — see the loop below.
+	emitted := false
+	clientDelta := func(delta string) {
+		emitted = true
+		if onDelta != nil {
+			onDelta(delta)
+		}
+	}
 
 	gatewayBudgetUntil := start.Add(time.Duration(r.cfg.AIGatewayBudgetMs) * time.Millisecond)
 	var switches int
@@ -280,6 +311,13 @@ func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 		isFallback := entry.Fallback
 		if isFallback && !r.HasAPIKey() {
 			break
+		}
+
+		// Client is gone (stop generation / closed tab): stop everything.
+		// No further entries are tried and no health damage is recorded —
+		// a user-initiated cancel says nothing about upstream health.
+		if ctx.Err() != nil {
+			return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
 		}
 
 		// Skip cooling-down entries unless they are the last resort.
@@ -294,12 +332,26 @@ func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 			continue
 		}
 
-		result, merr := r.streamEntry(ctx, entry, req, onDelta, onModel)
+		if !isFallback {
+			r.stats.RecordGatewayAttempt()
+		}
+
+		result, merr := r.streamEntry(ctx, entry, req, clientDelta, onModel)
 		if merr == nil {
-			r.health.RecordSuccess(entry.Name, result.FirstTokenMs)
+			r.health.RecordSuccess(entry.Name, result.FirstTokenMs, result.TotalMs)
 			r.stats.RecordOutcome(isFallback, switches)
 			result.Switches = switches
 			return result, nil
+		}
+
+		if merr.Code == "MODEL_CLIENT_GONE" || ctx.Err() != nil {
+			return nil, merr
+		}
+
+		// Failover window is closed once the client saw content: surface the
+		// failure immediately instead of replaying the pool (no "AAABBB").
+		if emitted {
+			return nil, &ModelError{Code: "STREAM_ERROR", Message: "模型响应中断"}
 		}
 
 		lastErr = merr
@@ -321,6 +373,11 @@ func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 	return nil, lastErr
 }
 
+// errQueueFull marks a rejected request: every in-flight slot is busy and the
+// waiting queue has hit ModelQueueMax (Node-compatible reject semantics —
+// waiting forever would let slow clients pin memory during an upstream outage).
+var errQueueFull = errors.New("model queue full")
+
 func (r *Router) acquireSlot(ctx context.Context) error {
 	select {
 	case r.queued <- struct{}{}:
@@ -331,25 +388,29 @@ func (r *Router) acquireSlot(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-	case <-ctx.Done():
-		return ctx.Err()
+	default:
+		return errQueueFull
 	}
 }
 
-// streamEntry runs one upstream attempt. Before the first content token the
-// entry is bound by its first-token watchdog; afterwards streaming continues
-// until [DONE] / total timeout / client cancel.
+// streamEntry runs one upstream attempt. Non-fallback entries are bound by a
+// first-token watchdog; the fallback (official API) entry is exempt — it is the
+// final safety net and must never be cut by the 2s rule (its budget is the
+// overall total timeout).
 func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, req ChatRequest, onDelta func(string), onModel func(name string)) (*StreamResult, *ModelError) {
 	attemptStart := time.Now()
 	attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(r.cfg.AITotalTimeoutMs)*time.Millisecond)
 	defer cancel()
 
 	var watchdogFired atomic.Bool
-	watchdog := time.AfterFunc(time.Duration(entry.FirstTokenTimeoutMs)*time.Millisecond, func() {
-		watchdogFired.Store(true)
-		cancel() // nothing streamed yet — kill the attempt so failover can proceed
-	})
-	defer watchdog.Stop()
+	var watchdog *time.Timer
+	if !entry.Fallback {
+		watchdog = time.AfterFunc(time.Duration(entry.FirstTokenTimeoutMs)*time.Millisecond, func() {
+			watchdogFired.Store(true)
+			cancel() // nothing streamed yet — kill the attempt so failover can proceed
+		})
+		defer watchdog.Stop()
+	}
 
 	body := map[string]any{
 		"model":    entry.Model,
@@ -383,11 +444,11 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		if watchdogFired.Load() {
 			return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型首字响应超时"}
 		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
+		}
 		if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
 			return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
-		}
-		if errors.Is(ctx.Err(), context.Canceled) {
-			return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时或连接中断，请重试"}
 		}
 		return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型服务异常: " + err.Error()}
 	}
@@ -426,11 +487,11 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 				// Upstream died mid-stream; the client already has content.
 				return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型响应中断"}
 			}
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
+			}
 			if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
 				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
-			}
-			if errors.Is(ctx.Err(), context.Canceled) {
-				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时或连接中断，请重试"}
 			}
 			return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型服务异常: " + err.Error()}
 		}
@@ -470,7 +531,9 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		if !gotFirstToken {
 			firstToken = time.Since(attemptStart).Milliseconds()
 			gotFirstToken = true
-			watchdog.Stop()
+			if watchdog != nil {
+				watchdog.Stop()
+			}
 		}
 		chars += len(delta)
 		if onDelta != nil {

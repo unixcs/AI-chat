@@ -1,8 +1,16 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"ai-chat-backend/internal/ai"
 )
 
 // Full user journey: register → admin mints code → redeem → chat (SSE) →
@@ -253,5 +261,94 @@ func TestAdminManagementEndpoints(t *testing.T) {
 	code, payload = env.req("GET", "/api/admin/ai/status", adminToken, nil)
 	if code != 200 || dataOf(payload)["mode"] != "official" {
 		t.Fatalf("ai status: %d %v", code, payload)
+	}
+}
+
+// Stop generation: client disconnects mid-stream → partial content persisted,
+// no [DONE], upstream cancelled.
+func TestStopGenerationPersistsPartial(t *testing.T) {
+	e := newEnv(t, nil) // custom upstream below
+	env := e
+	gotFirst := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher := w.(http.Flusher)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"PARTIAL"}}]}`+"\n\n")
+		flusher.Flush()
+		close(gotFirst)
+		<-r.Context().Done() // hang until cancelled
+	}))
+	defer upstream.Close()
+	env.cfg.AIProviders[0].BaseURL = upstream.URL
+	router := ai.NewRouter(env.cfg)
+	env.server.Config.Handler = New(env.svc, router).Routes()
+
+	_, payload := env.req("POST", "/api/auth/register", "", map[string]any{"phone": "13933334444", "nickname": "Stop", "password": "pass123"})
+	_, payload = env.req("POST", "/api/auth/login", "", map[string]any{"phone": "13933334444", "password": "pass123"})
+	token := dataOf(payload)["token"].(string)
+	// membership via admin
+	_, ap := env.req("POST", "/api/admin/auth/login", "", map[string]any{"username": "admin", "password": "admin123"})
+	admin := dataOf(ap)["token"].(string)
+	_, cp := env.req("POST", "/api/admin/redeem-codes/batch", admin, map[string]any{"quantity": 1})
+	code := listOf(cp)[0].(map[string]any)["code"].(string)
+	env.req("POST", "/api/user/redeem", token, map[string]any{"code": code})
+	_, conv := env.req("POST", "/api/chat/conversations", token, nil)
+	convID := dataOf(conv)["id"].(string)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s/api/chat/conversations/%s/stream?token=%s&content=hi", env.server.URL, convID, token), nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	buf := make([]byte, 4096)
+	var received string
+	for {
+		n, err := resp.Body.Read(buf)
+		received += string(buf[:n])
+		if err != nil || strings.Contains(received, "PARTIAL") {
+			break
+		}
+	}
+	select {
+	case <-gotFirst:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream never produced first token")
+	}
+	cancel() // 停止生成
+	resp.Body.Close()
+	<-time.After(300 * time.Millisecond)
+
+	_, payload = env.req("GET", "/api/chat/conversations/"+convID+"/messages", token, nil)
+	msgs := listOf(payload)
+	if len(msgs) != 2 {
+		t.Fatalf("partial reply must be persisted, got %d messages", len(msgs))
+	}
+	if msgs[1].(map[string]any)["content"] != "PARTIAL" {
+		t.Fatalf("persisted partial content mismatch: %v", msgs[1])
+	}
+	if strings.Contains(received, "[DONE]") {
+		t.Fatal("cancelled stream must not deliver [DONE]")
+	}
+}
+
+// An admin token pointed at the SSE endpoint must get the Node-compatible
+// 403 INVALID_USER_TOKEN — not a panic and not a 401.
+func TestStreamRejectsAdminToken(t *testing.T) {
+	e := newEnv(t, []string{"x"})
+	env := e
+	_, payload := env.req("POST", "/api/admin/auth/login", "", map[string]any{"username": "admin", "password": "admin123"})
+	admin := dataOf(payload)["token"].(string)
+
+	resp, err := http.Get(env.server.URL + "/api/chat/conversations/whatever/stream?token=" + admin + "&content=hi")
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	defer resp.Body.Close()
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if resp.StatusCode != 403 || body["code"] != "INVALID_USER_TOKEN" {
+		t.Fatalf("expected 403 INVALID_USER_TOKEN, got %d %v", resp.StatusCode, body)
 	}
 }

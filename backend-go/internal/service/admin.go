@@ -160,6 +160,7 @@ func (s *Service) AdminSetUserStatus(id, status string) *ServiceError {
 	if err := s.Store.UpdateUserStatus(id, status); err != nil {
 		return fail(500, "服务器繁忙")
 	}
+	auditLog("set-user-status", fmt.Sprintf("%s -> %s", user.Phone, status), "")
 	return nil
 }
 
@@ -178,6 +179,7 @@ func (s *Service) AdminResetPassword(id, newPassword string) *ServiceError {
 	if err := s.Store.UpdateUserPassword(id, hash); err != nil {
 		return fail(500, "服务器繁忙")
 	}
+	auditLog("reset-user-password", user.Phone, "")
 	return nil
 }
 
@@ -215,6 +217,7 @@ func (s *Service) AdminSetMemberExpire(id, memberExpireAt string) (*model.User, 
 	if err := s.Store.UpdateUserMemberExpire(id, normalized); err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}
+	auditLog("set-member-expire", fmt.Sprintf("%s -> %s", user.Phone, normalized), "")
 	updated, err := s.Store.GetUserByID(id)
 	if err != nil {
 		return nil, fail(500, "服务器繁忙")
@@ -292,6 +295,7 @@ func (s *Service) GenerateRedeemCodes(quantity, durationMonths int) ([]model.Red
 		}
 		created = append(created, c)
 	}
+	auditLog("generate-redeem-codes", fmt.Sprintf("n=%d duration=%dmo", quantity, durationMonths), "")
 	return created, nil
 }
 
@@ -318,9 +322,9 @@ func (s *Service) AdminRedeemRecords(page, pageSize int, phone, start, end strin
 	return &PageResult{Items: records, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-func (s *Service) AdminConversations(page, pageSize int, phone, keyword string) (*PageResult, *ServiceError) {
+func (s *Service) AdminConversations(page, pageSize int, phone, keyword, search string) (*PageResult, *ServiceError) {
 	page, pageSize = pageParams(page, pageSize, 100)
-	list, total, err := s.Store.ListConversationsAdmin(page, pageSize, phone, keyword)
+	list, total, err := s.Store.ListConversationsAdmin(page, pageSize, phone, keyword, search)
 	if err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}
@@ -333,11 +337,6 @@ func (s *Service) AdminConversationMessages(conversationID string) ([]model.Mess
 		return nil, fail(500, "服务器繁忙")
 	}
 	return msgs, nil
-}
-
-// SearchConversations filters by title/phone/content keyword (admin `search` param).
-func (s *Service) SearchConversationIDs(keyword string) (map[string]bool, error) {
-	return s.Store.SearchConversationIDsByContent(strings.ToLower(keyword))
 }
 
 // ---------- announcements (admin side) ----------
@@ -383,6 +382,7 @@ func (s *Service) AdminCreateAnnouncement(title, content string, active bool) (*
 	if err := s.Store.CreateAnnouncement(a); err != nil {
 		return nil, fail(500, "服务器繁忙")
 	}
+	auditLog("create-announcement", title, "")
 	return a, nil
 }
 
@@ -418,4 +418,10 @@ func nilOrNil(s string) any {
 		return nil
 	}
 	return s
+}
+
+// LookupUserByPhone is the bot-facing user lookup. The Telegram bot must go
+// through the service layer (original Plan §19) — it never touches the store.
+func (s *Service) LookupUserByPhone(phone string) (*model.User, error) {
+	return s.Store.GetUserByPhone(phone)
 }
