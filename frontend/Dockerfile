@@ -3,7 +3,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --no-audit --no-fund \
+    --registry=https://registry.npmmirror.com --replace-registry-host=always
 
 COPY . .
 RUN npm run build
