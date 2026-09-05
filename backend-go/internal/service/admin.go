@@ -18,9 +18,17 @@ type PageResult struct {
 	PageSize int   `json:"pageSize"`
 }
 
+// maxPage caps pagination deep jumps (100_000 * pageSize already covers any
+// realistic dataset; deeper "pages" are empty in Node too, without the
+// SQLite OFFSET blowup).
+const maxPage = 100000
+
 func pageParams(page, pageSize, maxPageSize int) (int, int) {
 	if page < 1 {
 		page = 1
+	}
+	if page > maxPage { // far beyond any real dataset; keeps OFFSET sane
+		page = maxPage
 	}
 	if pageSize < 1 {
 		pageSize = 10
@@ -263,8 +271,11 @@ func (s *Service) AdminRedeemCodesExport(status, codeKeyword string) ([]model.Re
 
 // GenerateRedeemCodes mints up to 200 codes with the same VIP-YYYYMMDD-XXXXXX shape.
 func (s *Service) GenerateRedeemCodes(quantity, durationMonths int, operator string) ([]model.RedeemCode, *ServiceError) {
-	if quantity <= 0 {
-		quantity = 1
+	if quantity < 0 {
+		return []model.RedeemCode{}, nil // Node: Math.min(-n,200) -> loop never runs
+	}
+	if quantity == 0 {
+		quantity = 1 // Node: Number(0)||1
 	}
 	if quantity > 200 {
 		quantity = 200

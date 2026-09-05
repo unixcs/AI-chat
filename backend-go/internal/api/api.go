@@ -6,8 +6,10 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +69,14 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "请求体过大"})
 			return false
 		}
+		if !errors.Is(err, io.EOF) {
+			// Malformed JSON is a hard 400 (express.json SyntaxError path).
+			// Only a truly empty body degrades to zero-value fields.
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"message": "请求参数错误"})
+			return false
+		}
 	}
 	return true
 }
@@ -84,7 +94,24 @@ func queryInt(r *http.Request, key string, fallback int) int {
 }
 
 func queryString(r *http.Request, key string) string {
-	return strings.TrimSpace(r.URL.Query().Get(key))
+	return strings.TrimSpace(queryRaw(r, key))
+}
+
+// queryRaw extracts a query parameter keeping Node's querystring semantics:
+// a value with an invalid percent-escape stays a literal string instead of
+// being silently dropped (dropping made admin filters fail open).
+func queryRaw(r *http.Request, key string) string {
+	for _, pair := range strings.Split(r.URL.RawQuery, "&") {
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok || k != key {
+			continue
+		}
+		if decoded, err := url.QueryUnescape(v); err == nil {
+			return decoded
+		}
+		return v
+	}
+	return ""
 }
 
 // ---------- middleware ----------

@@ -60,6 +60,7 @@ type entryHealth struct {
 	LastFirstToken int64
 	EwmaFirstToken float64
 	EwmaTotal      float64
+	LastFailAt     time.Time
 }
 
 type Health struct {
@@ -113,24 +114,34 @@ func (h *Health) RecordSuccess(name string, firstTokenMs, totalMs int64) {
 	}
 }
 
+// incidentWindow groups near-simultaneous failures into ONE incident: a burst
+// of 50 concurrent requests hitting a dead upstream must count as a single
+// failure for escalation purposes, otherwise one blip puts the whole pool on
+// minutes-long cooldown. Escalation only happens between incidents.
+const incidentWindow = 10 * time.Second
+
 func (h *Health) RecordFailure(name string, isTimeout bool, msg string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	e := h.get(name)
-	e.ConsecFails++
 	e.Failures++
+	now := time.Now()
+	if e.LastFailAt.IsZero() || now.Sub(e.LastFailAt) > incidentWindow {
+		e.ConsecFails++
+	}
+	e.LastFailAt = now
 	if isTimeout {
 		e.Timeouts++
 	}
 	e.LastErr = msg
-	// Exponential cooldown: 30s, 1m, 2m, 4m ... capped. Once the cooldown
-	// expires the entry is simply eligible again — its next natural attempt
-	// doubles as the recovery probe, so no separate prober is needed.
+	// Exponential cooldown per incident: 30s, 1m, 2m, 4m ... capped. Once the
+	// cooldown expires the entry is simply eligible again — its next natural
+	// attempt doubles as the recovery probe, so no separate prober is needed.
 	cd := h.baseCD << uint(min64(e.ConsecFails-1, 5))
 	if cd > h.maxCD {
 		cd = h.maxCD
 	}
-	e.CooldownUntil = time.Now().Add(cd)
+	e.CooldownUntil = now.Add(cd)
 }
 
 func min64(a, b int64) int64 {
@@ -219,6 +230,24 @@ type Router struct {
 }
 
 func NewRouter(cfg *config.Config) *Router {
+	// Config-level normalization: programmatic callers can hand us zero
+	// values that would otherwise brick the pool (0ms watchdog fires at once;
+	// a 0-cap semaphore blocks forever).
+	if cfg.AIFirstTokenTimeoutMs <= 0 {
+		cfg.AIFirstTokenTimeoutMs = 2000
+	}
+	if cfg.AIGatewayBudgetMs <= 0 {
+		cfg.AIGatewayBudgetMs = 6000
+	}
+	if cfg.AITotalTimeoutMs <= 0 {
+		cfg.AITotalTimeoutMs = 90000
+	}
+	if cfg.ModelConcurrency <= 0 {
+		cfg.ModelConcurrency = 6
+	}
+	if cfg.ModelQueueMax <= 0 {
+		cfg.ModelQueueMax = 50
+	}
 	entries := make([]config.ProviderEntry, 0, len(cfg.AIProviders))
 	for _, e := range cfg.AIProviders {
 		// Official mode serves ONLY via the official backstop — the runtime
@@ -282,7 +311,6 @@ func (r *Router) HasAPIKey() bool                 { return r.cfg.AIAPIKey != "" 
 // mid-stream failure surfaces as an error and MUST NOT replay remaining entries
 // (that would concatenate duplicated text).
 func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(string), onModel func(string)) (*StreamResult, *ModelError) {
-	start := time.Now()
 	r.stats.RecordRequest()
 
 	if err := r.acquireSlot(ctx); err != nil {
@@ -296,6 +324,11 @@ func (r *Router) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 		}
 	}
 	defer func() { <-r.sem }()
+
+	// The gateway budget measures MODEL time, not queue time: the clock starts
+	// only once this request owns a slot. (Queue waits used to burn the budget
+	// and silently route every queued request to the paid official API.)
+	start := time.Now()
 
 	// emitted tracks whether any content token already reached the client.
 	// After that point the failover window is closed — see the loop below.
@@ -490,18 +523,22 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 	for {
 		line, err := readLine(reader)
 		if err != nil {
+			if errors.Is(ctx.Err(), context.Canceled) {
+				// Client-initiated cancel is classified first — even after the
+				// first token — so health and error contracts stay honest.
+				return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
+			}
 			if watchdogFired.Load() {
 				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型首字响应超时"}
+			}
+			if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
+				// Total-timeout death counts as a timeout regardless of whether
+				// content had already started flowing.
+				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
 			}
 			if gotFirstToken {
 				// Upstream died mid-stream; the client already has content.
 				return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型响应中断"}
-			}
-			if errors.Is(ctx.Err(), context.Canceled) {
-				return nil, &ModelError{Code: "MODEL_CLIENT_GONE", Message: "客户端已取消"}
-			}
-			if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
-				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
 			}
 			return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型服务异常: " + err.Error()}
 		}

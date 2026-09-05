@@ -21,6 +21,9 @@ func (s *Service) ListConversations(userID string, page, pageSize int) ([]model.
 	if page < 1 {
 		page = 1
 	}
+	if page > maxPage {
+		page = maxPage
+	}
 	switch {
 	case pageSize > 500:
 		pageSize = 500
