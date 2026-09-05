@@ -11,12 +11,13 @@
 
 - 项目：`https://github.com/unixcs/AI-chat`
 - 本地工作区：`/mnt/vps/yun/AI-chat/`
-- 本地 master：`2e695db`
+- 本地 master：`7313677`
   - 其中包含：`89b3a94`（nginx 超时/DNS持久化/分页/轮询降频/DEEPSEEK_EXTRA_BODY 支持）
   - `d748ab6`（文档 + `.env.example` 说明）
   - `a27f601`（主会话交接文档）
   - `26f8749`（流式渲染卡顿修复：纯文本先显示 + delta 按帧合并）
   - `2e695db`（交接文档补充）
+  - `7313677`（系统提示词更新 + `max_tokens` 示例 1000）
 - **本地未 push**，GitHub 仍是最旧状态，**服务器生产 /opt/AI-chat 也还是旧代码**。
 
 ## 3. 已部署的测试实例（服务器）
@@ -35,7 +36,7 @@
 `/home/admin/ai-chat-test/backend/.env` 已加：
 
 ```env
-DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}
+DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}
 ```
 
 ⚠️ 环境变量依赖 `.env` 在 **容器创建时** 生效：
@@ -49,10 +50,10 @@ docker compose up -d --force-recreate backend
 
 ## 5. 已确认的效果
 
-同样请求在关闭推理并设置 `max_tokens:500` 后：
+同样请求在关闭推理并设置 `max_tokens:1000` 后：
 
 - 健康检查：`GET http://121.41.192.80:8189/api/health` → `{"ok":true}`
-- 容器内 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}`
+- 容器内 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}`
 - 探针请求结果：
   - `firstTokenMs: ~0.4~0.8s`
   - `totalMs: ~5.5~6.8s`
@@ -85,13 +86,13 @@ docker compose up -d --force-recreate backend
 
 ### 已提交 `d748ab6`
 
-- `backend/.env.example`：补充 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}` 说明
+- `backend/.env.example`：补充 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}` 说明
 - `CURRENT_STATE.md`：记录排查过程
 
 未进 Git 的环境变量（不在仓库里）：
 
 ```env
-DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}
+DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}
 ```
 
 ## 7. 后续部署动作（等用户测试通过）
@@ -105,7 +106,7 @@ cp -a docker-compose.yml docker-compose.yml.bak.$(date +%F)
 # 1 同步代码到生产（只改文件，不动数据/.env；用本地到服务器 rsync 或直接替换指定文件）
 
 # 2 修改 /opt/AI-chat/backend/.env
-#   DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}
+#   DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}
 
 # 3 重建生产容器（注意是 force-recreate）
 cd /opt/AI-chat
@@ -122,4 +123,4 @@ git push origin master
 
 ## 8. 交接提示词（给主 Codex）
 
-> 你正在接手 AI-chat 项目的收尾部署。当前主分支在本地 `/mnt/vps/yun/AI-chat`（master，最近 commit `d748ab6`），尚未 push；服务器生产 `/opt/AI-chat` 还是旧代码，生产容器端口 8181/3001 未动；测试环境 `http://121.41.192.80:8189` 已上线，后端已配置 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":500}`。验证详情见 `/mnt/vps/yun/AI-chat/HANDOFF_MAIN_CODEX.md` 和 `CURRENT_STATE.md`。等待用户验收后执行生产部署：同步代码到 `/opt/AI-chat`、备份并更新 `.env`、`docker compose up -d --force-recreate --build`、验证、push GitHub。
+> 你正在接手 AI-chat 项目的收尾部署。当前主分支在本地 `/mnt/vps/yun/AI-chat`（master，最近 commit `d748ab6`），尚未 push；服务器生产 `/opt/AI-chat` 还是旧代码，生产容器端口 8181/3001 未动；测试环境 `http://121.41.192.80:8189` 已上线，后端已配置 `DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}`。验证详情见 `/mnt/vps/yun/AI-chat/HANDOFF_MAIN_CODEX.md` 和 `CURRENT_STATE.md`。等待用户验收后执行生产部署：同步代码到 `/opt/AI-chat`、备份并更新 `.env`、`docker compose up -d --force-recreate --build`、验证、push GitHub。
