@@ -143,3 +143,31 @@ AI_MODE=gateway  AI_PROVIDERS_JSON='[{"name":"cpa","baseURL":"...","apiKey":"...
 | `backend-go/` | Go 后端（internal/{api,service,store,ai,bot,auth,config,model}） |
 | `deploy/deploy-yun1-test.sh` + `docker-compose.yun1-test.yml` | 测试位部署 |
 | `/tmp/adv-r1..r11`（服务器本地，不入库） | 十一轮对抗审查工装与证据 |
+
+---
+
+## 12. 后续迭代（2026-09-06 下午）：复制修复 + 三维度偏好 + 全站 UI 重建
+
+> 实施 Plan：`docs/PREF-UI-REDESIGN-PLAN.md`（评审 PASS 9/10）。版本锚点：tag `pre-ui-redesign`（UI 重建前回滚保险，已推 GitHub）。
+
+### 12.1 阶段一：复制修复（Part A）+ 三维度回答偏好（Part B/C）
+
+- **复制 Bug 根因链**：生产 http://IP 为 insecure context → `navigator.clipboard` 不存在 → execCommand 兜底；移动端失败主因 = iOS WebKit readonly 选区缺陷。R12a 审查进一步抓出修复版自身的 P0：`selectNodeContents(textarea)` 造出的 Range 恒为空（textarea 无子节点）+ `removeAllRanges()` 销毁真选区 → execCommand 返回 true 但 OS 剪贴板不变（假成功）。
+- **终版实现**（`frontend/src/utils/clipboard.js`）：Clipboard API 优先（无 await 前置，保 user activation）；兜底 = clipboard.js 式生命周期（readonly→focus→移除 readonly→select→setSelectionRange→execCommand），viewport 内定位（`top=pageYOffset`）、copy 后恢复用户原选区；`selectNodeContents` 在源码级明令禁止（测试剥离注释后断言）。
+- **真机证据**：Chromium 149 CDP，insecure origin（copyhost.test 模拟）+ secure 强制兜底双路径，5 场景（用户消息/AI markdown/2 万字/emoji/多行）OS 剪贴板端到端 12/12 PASS。
+- **三维度偏好**：`answerFormat` 列（非破坏迁移）+ 10 张偏好提示词卡片（settings 表预置、INSERT OR IGNORE、管理员编辑热生效）；组装链 = 基础内置 Prompt + 长度卡 + 风格卡 + 格式卡（standard 段同样拼入，空卡跳段），`BuildSystemPrompt` 在流式请求准备阶段调用一次 → 进行中请求冻结旧文案；动态 SET UPDATE 防部分 PUT 清列；旧用户 answerFormat=null → 前端 standard 兜底。
+- **测试**：后端新增 prefprompt/service+api 测试组（组装序/幂等种子/冻结/白名单 404/部分 PUT），`go test ./... -race` 五包绿；前端 clipboard 14 项 + 偏好相关，`node --test` 全绿。
+
+### 12.2 阶段二：Part D 全站 UI 重建（shadcn-vue + brand-guidelines）
+
+- **基建**：Tailwind CSS v4（`@tailwindcss/vite`，CSS-first token）+ reka-ui 2.10 + cva/clsx/tailwind-merge + lucide-vue-next + vue-sonner + tw-animate-css；22 组组件（75 文件）复制进 `src/components/ui/`；品牌 token 落 `docs/BRAND-GUIDELINES.md` + `style.css`（雾林绿 #3F7D4E 语义变量、圆角阶 8/12/16/22、断点 640/960、动效 150-200ms）。
+- **暗色双机制**（评审 F2 决策）：`utils/theme.js` 同时驱动 `data-theme` 属性（历史 scoped 样式）与 `html.dark` class（tailwind 变体），verify-dark-mode.py 断言并存。
+- **改造范围**：20 文件全换装（Landing/三认证/两布局/Chat/Profile/Settings + 11 管理页），`<script setup>` 业务逻辑零改动（R12b 逐文件 diff 证明）；交互升级 = 历史 Sheet、删除 AlertDialog、公告 Dialog、偏好 Popover、登出确认、vue-sonner toast；管理端表格 <960px 折叠卡片列表。
+- **门禁**：完整性门禁入测试（20 文件无旧全局类残留）；体积门禁 JS gzip +72.92KB（≤+120 ✓）、CSS gzip +0.75KB（≤+30 ✓）；72/72 测试绿。
+- **R12b 审查 VERDICT: SOLID**：脚本完整性 diff、reka-ui 陷阱（0 空 SelectItem、Root/Content 配对）、真机冒烟（双视口 × 4 页 16/16 + 暗色双机制 + 登录超时反馈）、视觉一致性、残留死区全过。
+- **回滚**：`git reset --hard pre-ui-redesign`（或仅回退前端镜像）——后端偏好 API 为纯增量，旧 UI 不受影响。
+
+### 12.3 部署与验收（yun1 测试位）
+
+- 部署过程：Docker Hub 不可达（TLS 超时）→ 经 daocloud 镜像源补齐 alpine/golang/node/nginx 基础镜像后 `deploy-yun1-test.sh` 一次通过；红线全程未触碰（yun 生产零接触、二节点 8181/3001 Up 22h 无扰动、镜像不在 yun1 构建）。
+- 线上真机验收（Chromium CDP → http://yun1:8189，insecure 生产等价）：注册→登录→新 UI 渲染→三维度偏好弹层→纯文字持久化→会员门槛文案逐字复现→0 意外页面错误→管理端壳渲染，9/9 PASS；health 双实例绿。
