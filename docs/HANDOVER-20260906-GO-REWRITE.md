@@ -67,7 +67,7 @@
 3. **切换形态**：生产前端容器 8181:80 不变，把 `ai-chat-backend` 容器镜像换为 `ai-chat-go-backend:latest`、`ai-chat-frontend` 换 `ai-chat-go-frontend:latest`（镜像由 WSL 构建 save/load，**禁止在 yun 上构建**——1.6GB 内存红线）；`.env` 沿用生产现值（不覆盖）。R14 仅为前端镜像更新，生产切换时用最新 `ai-chat-go-frontend:latest` 即可。
 4. **升级窗口**：低峰执行；后端停机时间 ≈ 容器重建 10 秒（SSE 连接会断，用户刷新即恢复）。
 5. **验收**：升级后必跑 `ops/health-yun.sh yun` 全绿 + 线上冒烟（登录/流式聊天/公告/后台登录）。
-6. **回滚**：原 Node 镜像 tag 保留（升级前 `docker tag` 记录当前镜像 ID），出问题一键换回；master 分支 = Node 版完整历史。
+6. **回滚**：原 Node 镜像 tag 保留（升级前 `docker tag` 记录当前镜像 ID），出问题一键换回；`main` 分支历史 = Node 版完整历史（Node 末端 commit `4b7bfa9`，`git checkout 4b7bfa9` 可还原）。
 
 ## 5. 已知限制 / 注意
 
@@ -89,7 +89,7 @@
 | 时刻(±08) | 动作 | 结果 |
 |---|---|---|
 | 21:05 | `sqlite3 .backup` 一致性备份 → `/home/admin/backup-pre-go-20260906-210541/`（174MB，integrity ok；`/mnt/back` root 属主 admin 不可写，改放家目录） | 备份+回滚锚点成立 |
-| 21:05 | 旧镜像打 tag `rollback-node-20260906`（backend a45d11b8 / frontend 706bda3b） | 三重回滚锚点（+备份+git master） |
+| 21:05 | 旧镜像打 tag `rollback-node-20260906`（backend a45d11b8 / frontend 706bda3b） | 三重回滚锚点（+备份+git main 历史） |
 | 21:07 | WSL 构建 `prod-29bb956` 双镜像并 save/gzip/ssh load | Prompt.md sha256 三方一致（4904a7c1…）；前端资产 `index-VKb7o8zh.js` |
 | 21:10 | **副本预演**：备份库挂一次性 Go 容器(127.0.0.1:3003)跑迁移 | 六业务表逐行一致（32\|24612\|154863\|62\|40\|2）；menus 8→11、settings 0→10、answerFormat 列新增；注册/登录/错误文案全通；副本即毁 |
 | 21:11 | 切换前基线（users=32, conv=24617, msg=154883, dup_phones=0）+ 生产注册一次性冒烟账号（users 32→33，Node 签发 token 留用） | 冒烟账号 phone 19999990001「升级冒烟」，**建议后续由管理员在后台禁用** |
@@ -108,7 +108,8 @@
 
 ### 7.3 遗留物与注意
 
-- 回滚可用（观察 1–2 周后再议清理）：镜像 tag `rollback-node-20260906` ×2、备份目录、`git master`（Node 版）
+- 回滚可用（观察 1–2 周后再议清理）：镜像 tag `rollback-node-20260906` ×2、备份目录、`git main` 历史（Node 版末端 `4b7bfa9`，仍在 main 历史中可 checkout）
+- 2026-09-06 分支收敛（用户指示）：GitHub 仅存 `main` 一条分支（=最新 Go 版 `347580e`，Node 全部历史已并入其中）；已删 `go-rewrite`/`fix/db-incremental` 分支与 `v2026.08.05-perf-db-incremental`/`v20260321-local-ok` 两个过时标签，仅留回滚锚点标签 `pre-ui-redesign`。今后规矩：**只有 main 一条长期分支，里程碑/回滚点一律用 tag，功能分支合并后即删**。
 - `/opt/AI-chat/docker-compose.override.yml` 长期存在（仅覆 2 个 image 字段）；生产 compose 操作一律 `--no-build`
 - 冒烟账号 19999990001（1 行 users + 1 空会话「升级冒烟」）保留不删；建议管理员后台禁用
 - `/mnt/back/ai-chat/121.41.192.80/` 为 root 属主，admin 无法写入（每日备份 cron 疑以 root 跑）——本次备份改放 `/home/admin/`，如需归位请用户处理
