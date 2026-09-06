@@ -10,25 +10,29 @@ import (
 // ---------- prompt revisions (append-only) ----------
 
 // CreatePromptRevision allocates MAX(version)+1 under the write mutex and
-// inserts the new head. Returns the allocated version.
-func (s *Store) CreatePromptRevision(content, operator string) (int64, error) {
+// inserts the new head. Returns the inserted row so callers can echo back
+// exactly the version they created — re-reading the head under concurrency
+// would report another writer's version.
+func (s *Store) CreatePromptRevision(content, operator string) (*model.PromptRevision, error) {
 	promptVersionMu.Lock()
 	defer promptVersionMu.Unlock()
 
-	var version int64
+	rev := &model.PromptRevision{}
 	err := s.inTx(func(tx *sql.Tx) error {
+		var version int64
 		if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM promptRevisions`).Scan(&version); err != nil {
 			return err
 		}
 		version++
+		rev.ID, rev.Version, rev.Content, rev.Operator, rev.CreatedAt = NewID(), version, content, operator, Now()
 		_, err := tx.Exec(`INSERT INTO promptRevisions (id, version, content, operator, createdAt) VALUES (?,?,?,?,?)`,
-			NewID(), version, content, operator, Now())
+			rev.ID, rev.Version, rev.Content, rev.Operator, rev.CreatedAt)
 		return err
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return version, nil
+	return rev, nil
 }
 
 // CurrentPromptRevision returns the highest-version row (the effective prompt).

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"ai-chat-backend/internal/config"
 	"ai-chat-backend/internal/service"
@@ -170,6 +171,22 @@ func TestBotMessageTruncation(t *testing.T) {
 	}
 	if got := truncateMessage("短的"); got != "短的" {
 		t.Fatalf("short text must pass through: %q", got)
+	}
+}
+
+// R11 #2: the byte-budget cut must never split a multi-byte character — the
+// truncated payload has to stay valid UTF-8 end to end.
+func TestBotTruncationRuneSafe(t *testing.T) {
+	cjk := strings.Repeat("测", 1334) // 4002 bytes, crosses the budget mid-rune
+	got := truncateMessage(cjk)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated output must be valid UTF-8")
+	}
+	if !utf8.ValidString(truncateMessage(strings.Repeat("\U0001F600", 1100))) {
+		t.Fatalf("astral-plane truncation must stay valid UTF-8")
+	}
+	if got := truncateMessage(strings.Repeat("a", maxTelegramMessage+1)); !utf8.ValidString(got) || !strings.Contains(got, "已截断") {
+		t.Fatalf("ascii truncation broken: %q tail", got[maxTelegramMessage-10:])
 	}
 }
 

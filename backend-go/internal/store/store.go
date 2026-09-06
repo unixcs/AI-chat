@@ -82,7 +82,11 @@ func (s *Store) migrate() error {
 		// Best-effort hard constraint: fails silently on legacy DBs that
 		// already contain duplicate phones (those keep the old behavior).
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON users(phone);`,
-		`CREATE INDEX IF NOT EXISTS idx_read_ann_user ON announcementReads(announcementId, userId);`,
+		// announcementReads: dedupe legacy rows, then enforce one read record
+		// per (announcement, user) so the admin read-count cannot inflate.
+		`DROP INDEX IF EXISTS idx_read_ann_user;`,
+		`DELETE FROM announcementReads WHERE id NOT IN (SELECT MIN(id) FROM announcementReads GROUP BY announcementId, userId);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_read_ann_user_uniq ON announcementReads(announcementId, userId);`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.DB.Exec(stmt); err != nil {

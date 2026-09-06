@@ -241,7 +241,7 @@ const acknowledgeAnnouncement = async () => {
     return
   }
   try {
-    await ackAnnouncement(current.id)
+    await ackAnnouncement(current.id, current.updatedAt)
   } catch (error) {
     // 确认失败不打扰用户：下次进入再提示
   }

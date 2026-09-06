@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ai-chat-backend/internal/config"
 	"ai-chat-backend/internal/service"
@@ -368,14 +369,22 @@ func boolText(b bool) string {
 }
 
 // maxTelegramMessage keeps replies under the sendMessage 4096-char limit.
+// The budget counts bytes: any ≤4000-byte string is also ≤4000 UTF-16 units,
+// no matter how many astral-plane characters it contains.
 const maxTelegramMessage = 4000
 
-// truncateMessage defensively cuts replies that exceed Telegram's limit.
+// truncateMessage defensively cuts replies that exceed the limit. The cut
+// point backs off to the nearest rune boundary so a multi-byte character is
+// never split into invalid UTF-8 (which Telegram would render as U+FFFD).
 func truncateMessage(text string) string {
-	if len(text) > maxTelegramMessage {
-		return text[:maxTelegramMessage] + "\n…（内容过长已截断）"
+	if len(text) <= maxTelegramMessage {
+		return text
 	}
-	return text
+	cut := maxTelegramMessage
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + "\n…（内容过长已截断）"
 }
 
 func (b *Bot) send(chatID int64, text string) {

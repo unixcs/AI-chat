@@ -132,11 +132,21 @@ func (a *API) handleCurrentAnnouncement(user *model.User, w http.ResponseWriter,
 		"title":     ann.Title,
 		"content":   ann.Content,
 		"createdAt": ann.CreatedAt,
+		"updatedAt": ann.UpdatedAt,
 	})
 }
 
 func (a *API) handleAckAnnouncement(user *model.User, w http.ResponseWriter, r *http.Request) {
-	if serr := a.Svc.AckAnnouncement(user.ID, r.PathValue("id")); serr != nil {
+	// asOf (optional) guards against acking content the user never saw:
+	// if the admin replaced the announcement between fetch and ack, the
+	// stale ack is dropped and the new content stays unread.
+	var body struct {
+		AsOf string `json:"asOf"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if serr := a.Svc.AckAnnouncement(user.ID, r.PathValue("id"), body.AsOf); serr != nil {
 		fail(w, serr)
 		return
 	}

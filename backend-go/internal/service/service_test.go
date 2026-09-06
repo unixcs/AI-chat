@@ -81,7 +81,7 @@ func TestAdminUpdateAnnouncementResetSemantics(t *testing.T) {
 		t.Fatalf("list: %+v", serr)
 	}
 	id := list[0]["id"].(string)
-	if err := st.AckAnnouncement(id, "u1"); err != nil {
+	if err := st.AckAnnouncement(id, "u1", ""); err != nil {
 		t.Fatalf("ack: %v", err)
 	}
 
@@ -105,7 +105,7 @@ func TestAdminUpdateAnnouncementResetSemantics(t *testing.T) {
 	if serr := svc.AdminUpdateAnnouncement(id, "维护通知", "改期到明晚维护", nil, "test"); serr != nil {
 		t.Fatalf("resave: %+v", serr)
 	}
-	if err := st.AckAnnouncement(id, "u1"); err != nil {
+	if err := st.AckAnnouncement(id, "u1", ""); err != nil {
 		t.Fatalf("re-ack: %v", err)
 	}
 	if serr := svc.AdminUpdateAnnouncement(id, "维护通知", "改期到明晚维护", nil, "test"); serr != nil {

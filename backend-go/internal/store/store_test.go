@@ -126,7 +126,7 @@ func TestAnnouncementUnreadFlow(t *testing.T) {
 	if err != nil || got.ID != "a1" {
 		t.Fatalf("unread ann: %v %+v", err, got)
 	}
-	if err := s.AckAnnouncement("a1", "u1"); err != nil {
+	if err := s.AckAnnouncement("a1", "u1", ""); err != nil {
 		t.Fatalf("ack: %v", err)
 	}
 	if _, err := s.CurrentUnreadAnnouncement("u1"); err != ErrNotFound {
@@ -144,7 +144,7 @@ func TestUpdateAnnouncementResetReads(t *testing.T) {
 	if err := s.CreateAnnouncement(ann); err != nil {
 		t.Fatalf("create ann: %v", err)
 	}
-	if err := s.AckAnnouncement("a1", "u1"); err != nil {
+	if err := s.AckAnnouncement("a1", "u1", ""); err != nil {
 		t.Fatalf("ack: %v", err)
 	}
 	ann.Content = "改期到明晚维护"
@@ -157,6 +157,53 @@ func TestUpdateAnnouncementResetReads(t *testing.T) {
 	}
 	if err := s.UpdateAnnouncementResetReads(annFixture("missing", "x", "y", true)); err != ErrNotFound {
 		t.Fatalf("missing ann must be ErrNotFound, got %v", err)
+	}
+}
+
+// R11 #3/#4: one read record per (announcement, user), and an ack carrying a
+// stale asOf fingerprint (user fetched, admin then changed content, ack
+// landed late) must be dropped so the new content still counts as unread.
+func TestAnnouncementAckDedupAndStaleAsOf(t *testing.T) {
+	s := openTest(t)
+	ann := annFixture("a1", "维护通知", "今晚维护", true)
+	if err := s.CreateAnnouncement(ann); err != nil {
+		t.Fatalf("create ann: %v", err)
+	}
+	current, err := s.GetAnnouncement("a1")
+	if err != nil {
+		t.Fatalf("get ann: %v", err)
+	}
+
+	// stale fingerprint: ack for a revision the user never saw is a no-op
+	if err := s.AckAnnouncement("a1", "u1", "2000-01-01T00:00:00.000Z"); err != nil {
+		t.Fatalf("stale ack must not error: %v", err)
+	}
+	if n, _ := s.CountAnnouncementReads("a1"); n != 0 {
+		t.Fatalf("stale ack must not mark read, got %d records", n)
+	}
+	if _, err := s.CurrentUnreadAnnouncement("u1"); err != nil {
+		t.Fatalf("stale ack must leave announcement unread: %v", err)
+	}
+
+	// fresh fingerprint records the read exactly once, however often acked
+	for i := 0; i < 3; i++ {
+		if err := s.AckAnnouncement("a1", "u1", current.UpdatedAt); err != nil {
+			t.Fatalf("ack #%d: %v", i, err)
+		}
+	}
+	if n, _ := s.CountAnnouncementReads("a1"); n != 1 {
+		t.Fatalf("duplicate acks must collapse to one record, got %d", n)
+	}
+	if _, err := s.CurrentUnreadAnnouncement("u1"); err != ErrNotFound {
+		t.Fatalf("acked ann must be read, got %v", err)
+	}
+
+	// legacy-path ack without fingerprint still records once
+	if err := s.AckAnnouncement("a1", "u2", ""); err != nil {
+		t.Fatalf("legacy ack: %v", err)
+	}
+	if n, _ := s.CountAnnouncementReads("a1"); n != 2 {
+		t.Fatalf("two users = two records, got %d", n)
 	}
 }
 

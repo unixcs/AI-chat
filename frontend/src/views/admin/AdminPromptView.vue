@@ -18,6 +18,9 @@ const loading = ref(false)
 
 const dirty = computed(() => draft.value !== info.value.content)
 
+// 后端上限按字节（20000），中文每字 3 字节，字符数会低估占用
+const draftBytes = computed(() => new TextEncoder().encode(draft.value).length)
+
 const load = async () => {
   loading.value = true
   try {
@@ -61,7 +64,8 @@ const save = async () => {
 }
 
 const restore = async (item) => {
-  if (!window.confirm(`恢复到 v${item.version}？将以其内容创建新版本 v${(info.value.version ?? 0) + 1}，历史保留。`)) {
+  // 并发保存下"下一个版本号"由服务端决定，确认文案不预推算
+  if (!window.confirm(`恢复到 v${item.version}？将以其内容创建一个新版本（历史保留，可随时再恢复）。`)) {
     return
   }
   errorText.value = ''
@@ -110,7 +114,7 @@ const preview = (content) => {
     <div class="editorBox">
       <textarea v-model="draft" rows="12" spellcheck="false" placeholder="输入系统内置提示词…"></textarea>
       <div class="editorActions">
-        <span class="mutedText">{{ draft.length }} 字符</span>
+        <span class="mutedText">{{ draftBytes }} / 20000 字节</span>
         <span class="editorSpacer"></span>
         <button v-if="dirty" class="ghostBtn" @click="draft = info.content">放弃修改</button>
         <button class="primaryBtn" :disabled="!dirty || saving" @click="save">

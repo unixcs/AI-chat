@@ -111,7 +111,25 @@ func (s *Store) CurrentUnreadAnnouncement(userID string) (*model.Announcement, e
 	return a, err
 }
 
-func (s *Store) AckAnnouncement(announcementID, userID string) error {
+// AckAnnouncement records that a user has read an announcement. When asOf is
+// non-empty it must match the announcement's current updatedAt: an ack for a
+// revision the user actually saw. A stale ack (admin replaced the content
+// between fetch and ack) is silently dropped so the new content still counts
+// as unread and gets re-shown.
+func (s *Store) AckAnnouncement(announcementID, userID, asOf string) error {
+	if asOf != "" {
+		var updatedAt string
+		err := s.DB.QueryRow(`SELECT updatedAt FROM announcements WHERE id = ?`, announcementID).Scan(&updatedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if updatedAt != asOf {
+			return nil
+		}
+	}
 	_, err := s.DB.Exec(`INSERT OR IGNORE INTO announcementReads (id, announcementId, userId, createdAt) VALUES (?,?,?,?)`,
 		NewID(), announcementID, userID, Now())
 	return err

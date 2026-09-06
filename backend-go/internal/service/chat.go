@@ -255,11 +255,14 @@ func (s *Service) CurrentAnnouncement(userID string) (*model.Announcement, *Serv
 	return a, nil
 }
 
-func (s *Service) AckAnnouncement(userID, announcementID string) *ServiceError {
+// AckAnnouncement marks an announcement read. asOf (optional) is the
+// updatedAt the user actually saw: when the admin replaced the announcement
+// content in the meantime the ack is dropped, leaving the new content unread.
+func (s *Service) AckAnnouncement(userID, announcementID, asOf string) *ServiceError {
 	if _, err := s.Store.GetAnnouncement(announcementID); err != nil {
 		return fail(404, "公告不存在")
 	}
-	if err := s.Store.AckAnnouncement(announcementID, userID); err != nil {
+	if err := s.Store.AckAnnouncement(announcementID, userID, asOf); err != nil {
 		return fail(500, "服务器繁忙")
 	}
 	return nil
