@@ -3,6 +3,13 @@ import { computed, reactive, ref } from 'vue'
 import { changePassword } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import { useRouter } from 'vue-router'
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Label from '@/components/ui/label/Label.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import { toast } from 'vue-sonner'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -19,6 +26,7 @@ const answerPrefs = computed(() => {
     { name: '输出格式', label: prefFormatLabels[p.answerFormat] || '标准' }
   ]
 })
+
 const formState = reactive({
   oldPassword: '',
   newPassword: '',
@@ -53,108 +61,48 @@ const submitChangePassword = async () => {
     router.push('/login')
   } catch (error) {
     errorText.value = error.response?.data?.message || '修改密码失败'
+    toast.error(errorText.value)
   }
 }
 </script>
 
 <template>
-  <section class="card panelShell settingCard">
-    <span class="sectionLabel">Security</span>
-    <h2 class="sectionTitle">修改密码</h2>
-    <p class="sectionIntro">提交新密码后会按原逻辑退出登录并返回登录页，这里只优化页面布局与表单呈现。</p>
+  <section class="p-4 md:p-6">
+    <Card class="mx-auto max-w-3xl">
+      <CardContent class="p-5 sm:p-6">
+        <h2 class="text-lg font-semibold text-card-foreground">修改密码</h2>
+        <p class="mt-1 mb-5 text-sm text-muted-foreground">提交新密码后会按原逻辑退出登录并返回登录页</p>
 
-    <div class="formItem">
-      <label>旧密码</label>
-      <input v-model="formState.oldPassword" type="password" />
-    </div>
-    <div class="formItem">
-      <label>新密码</label>
-      <input v-model="formState.newPassword" type="password" />
-    </div>
-    <div class="formItem">
-      <label>确认新密码</label>
-      <input v-model="formState.confirmPassword" type="password" />
-    </div>
-    <p v-if="errorText" class="dangerText errorText">{{ errorText }}</p>
-    <button class="primaryBtn" @click="submitChangePassword">确认修改</button>
+        <form class="space-y-4" @submit.prevent="submitChangePassword">
+          <div class="space-y-2">
+            <Label for="settings-old">旧密码</Label>
+            <Input id="settings-old" v-model="formState.oldPassword" type="password" />
+          </div>
+          <div class="space-y-2">
+            <Label for="settings-new">新密码</Label>
+            <Input id="settings-new" v-model="formState.newPassword" type="password" />
+          </div>
+          <div class="space-y-2">
+            <Label for="settings-confirm">确认新密码</Label>
+            <Input id="settings-confirm" v-model="formState.confirmPassword" type="password" />
+          </div>
 
-    <div class="prefDisplay">
-      <h3 class="prefTitle">回答偏好</h3>
-      <div class="prefRow">
-        <span v-for="pref in answerPrefs" :key="pref.name" class="prefItem">
-          <small class="prefName">{{ pref.name }}</small>
-          <b class="prefValue">{{ pref.label }}</b>
-        </span>
-      </div>
-      <p class="prefHint">在聊天界面的偏好弹层中调整，对所有新对话生效。</p>
-    </div>
+          <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
+
+          <Button type="submit">确认修改</Button>
+        </form>
+
+        <div class="mt-6 border-t border-border pt-4">
+          <h3 class="text-[15px] font-semibold text-card-foreground">回答偏好</h3>
+          <div class="mt-3 flex flex-wrap gap-2.5">
+            <span v-for="pref in answerPrefs" :key="pref.name" class="flex min-w-21 flex-col gap-0.5 rounded-lg border border-border bg-muted/50 px-3.5 py-2">
+              <small class="text-xs text-muted-foreground">{{ pref.name }}</small>
+              <b class="text-sm font-semibold text-foreground">{{ pref.label }}</b>
+            </span>
+          </div>
+          <p class="mt-2.5 text-xs text-faint">在聊天界面的偏好弹层中调整，对所有新对话生效。</p>
+        </div>
+      </CardContent>
+    </Card>
   </section>
 </template>
-
-<style scoped>
-.settingCard {
-  padding: 24px;
-  max-width: 760px;
-}
-
-.settingCard .sectionTitle {
-  margin-top: 14px;
-}
-
-.settingCard .sectionIntro {
-  margin-bottom: 22px;
-}
-
-.errorText {
-  margin: 0 0 12px;
-}
-
-.prefDisplay {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.prefTitle {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: var(--text-title);
-}
-
-.prefRow {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.prefItem {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.45);
-  min-width: 84px;
-}
-
-[data-theme='dark'] .prefItem {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.prefName {
-  color: var(--text-soft);
-  font-size: 12px;
-}
-
-.prefValue {
-  color: var(--text-title);
-  font-size: 14px;
-}
-
-.prefHint {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--text-soft);
-}
-</style>

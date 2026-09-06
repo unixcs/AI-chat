@@ -2,6 +2,11 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { registerUser } from '../../api/auth'
+import AuthShell from '@/components/layout/AuthShell.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Label from '@/components/ui/label/Label.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -50,132 +55,41 @@ const submitRegister = async () => {
 </script>
 
 <template>
-  <section class="authShell pageWrap">
-    <div class="authBackdrop"></div>
-
-    <div class="authGrid contentContainer">
-      <article class="authSurface card" :class="'panelShell'">
-        <p class="authSub">欢迎加入</p>
-        <h2 class="sectionTitle authTitle">注册账号</h2>
-
-        <div class="formItem">
-          <label>手机号</label>
-          <input v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
-        </div>
-        <div class="formItem">
-          <label>昵称</label>
-          <input v-model="formState.nickname" placeholder="请输入昵称" />
-        </div>
-        <div class="formItem">
-          <label>密码</label>
-          <input v-model="formState.password" type="password" placeholder="请输入密码" />
-        </div>
-        <div class="formItem">
-          <label>确认密码</label>
-          <input v-model="formState.confirmPassword" type="password" placeholder="请再次输入密码" />
-        </div>
-
-        <p v-if="errorText" class="dangerText authError">{{ errorText }}</p>
-
-        <button class="primaryBtn fullBtn" :disabled="loading" @click="submitRegister">
-          {{ loading ? '注册中...' : '注册' }}
-        </button>
-
-        <div class="authActions">
-          <router-link to="/login">已有账号？返回登录</router-link>
-        </div>
-      </article>
+  <AuthShell max-width="max-w-[460px]">
+    <div class="mb-6 flex flex-col items-center gap-3 text-center">
+      <p class="text-[13px] text-white/75">欢迎加入</p>
+      <h1 class="text-2xl leading-tight font-bold text-white">注册账号</h1>
     </div>
-  </section>
+
+    <form class="space-y-4" @submit.prevent="submitRegister">
+      <div class="space-y-2">
+        <Label class="text-white/85" for="reg-phone">手机号</Label>
+        <Input id="reg-phone" v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
+      </div>
+      <div class="space-y-2">
+        <Label class="text-white/85" for="reg-nickname">昵称</Label>
+        <Input id="reg-nickname" v-model="formState.nickname" placeholder="请输入昵称" />
+      </div>
+      <div class="space-y-2">
+        <Label class="text-white/85" for="reg-password">密码</Label>
+        <Input id="reg-password" v-model="formState.password" type="password" placeholder="请输入密码" />
+      </div>
+      <div class="space-y-2">
+        <Label class="text-white/85" for="reg-confirm">确认密码</Label>
+        <Input id="reg-confirm" v-model="formState.confirmPassword" type="password" placeholder="请再次输入密码" />
+      </div>
+
+      <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
+
+      <Button type="submit" class="w-full" :disabled="loading">
+        {{ loading ? '注册中...' : '注册' }}
+      </Button>
+
+      <p class="text-right text-[13px]">
+        <router-link to="/login" class="font-semibold text-white/85 transition-colors hover:text-white">
+          已有账号？返回登录
+        </router-link>
+      </p>
+    </form>
+  </AuthShell>
 </template>
-
-<style scoped>
-.authShell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  overflow: hidden;
-}
-
-.authBackdrop {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, rgba(31, 38, 48, 0.56), rgba(82, 91, 105, 0.34)),
-    url('/assets/login-bg.png') center / cover no-repeat;
-  filter: blur(1px) saturate(0.88);
-  transform: scale(1.03);
-}
-
-.authBackdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.26), transparent 30%),
-    rgba(19, 24, 31, 0.2);
-  backdrop-filter: blur(10px);
-}
-
-.authGrid {
-  position: relative;
-  z-index: 1;
-  width: min(1220px, 100%);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.authSurface {
-  padding: 28px;
-  width: min(450px, 100%);
-  margin: 0 auto;
-}
-
-.authSub {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 13px;
-  text-align: center;
-}
-
-.authTitle {
-  text-align: center;
-}
-
-.authError {
-  margin: 0 0 12px;
-}
-
-.fullBtn {
-  width: 100%;
-}
-
-.authActions {
-  margin-top: 16px;
-  text-align: right;
-}
-
-.authActions a {
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-@media (max-width: 960px) {
-  .authGrid {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .authShell {
-    padding: 14px;
-  }
-
-  .authSurface {
-    padding: 20px;
-  }
-}
-</style>

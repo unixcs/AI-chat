@@ -1,3 +1,161 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* 暗色变体：shadcn 生态标准是 .dark class；本应用历史机制是 data-theme 属性，
+   theme.js 同时驱动两者（双机制并存，verify-dark-mode.py 断言）。 */
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   品牌语义 token（brand-guidelines：雾林绿 + 雾感中性面）
+   ============================================================ */
+:root {
+  --background: #f5f4ef;
+  --foreground: #1e241f;
+  --card: #ffffff;
+  --card-foreground: #1e241f;
+  --popover: #ffffff;
+  --popover-foreground: #1e241f;
+  --primary: #3f7d4e;
+  --primary-foreground: #f6f9f5;
+  --primary-hover: #356a42;
+  --secondary: #eef0e9;
+  --secondary-foreground: #2c352e;
+  --muted: #eff0ea;
+  --muted-foreground: #5c665e;
+  --accent: rgba(63, 125, 78, 0.08);
+  --accent-foreground: #2c5a38;
+  --destructive: #b4533c;
+  --destructive-foreground: #fdf4f1;
+  --warning: #b98a2e;
+  --info: #3e6e8e;
+  --border: rgba(30, 42, 32, 0.12);
+  --input: rgba(30, 42, 32, 0.16);
+  --ring: rgba(63, 125, 78, 0.4);
+  --text-faint: #8a948b;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-elevated: 0 8px 24px rgba(30, 42, 32, 0.08), 0 2px 8px rgba(30, 42, 32, 0.05);
+  --shadow-overlay: 0 16px 48px rgba(30, 42, 32, 0.14), 0 4px 12px rgba(30, 42, 32, 0.08);
+  --font-sans: -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Courier New', monospace;
+}
+
+.dark {
+  --background: #131614;
+  --foreground: #e8ece8;
+  --card: #1a1e1b;
+  --card-foreground: #e8ece8;
+  --popover: #1c211d;
+  --popover-foreground: #e8ece8;
+  --primary: #6faf7f;
+  --primary-foreground: #10160f;
+  --primary-hover: #7fbf8e;
+  --secondary: #232823;
+  --secondary-foreground: #cdd6cd;
+  --muted: #212621;
+  --muted-foreground: #9aa79d;
+  --accent: rgba(111, 175, 127, 0.12);
+  --accent-foreground: #a9d4b2;
+  --destructive: #d97b64;
+  --destructive-foreground: #1a0f0c;
+  --warning: #d9a94c;
+  --info: #7aa8c7;
+  --border: rgba(232, 236, 232, 0.1);
+  --input: rgba(232, 236, 232, 0.14);
+  --ring: rgba(111, 175, 127, 0.45);
+  --text-faint: #6e7a70;
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.46), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================
+   tailwind 工具映射（shadcn-vue 组件消费）
+   ============================================================ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-faint: var(--text-faint);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 960px;
+}
+
+/* ============================================================
+   基础层（正文 15px/1.75，雾感背景）
+   ============================================================ */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--foreground);
+    letter-spacing: 0.1px;
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 30%),
+      radial-gradient(circle at 85% 10%, rgba(150, 190, 160, 0.18), transparent 26%),
+      radial-gradient(circle at 20% 90%, rgba(210, 200, 185, 0.24), transparent 28%),
+      linear-gradient(180deg, #f8f7f3 0%, #f1f0ea 100%);
+  }
+
+  .dark body {
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 26%),
+      radial-gradient(circle at 80% 10%, rgba(111, 175, 127, 0.09), transparent 24%),
+      linear-gradient(180deg, #161a17 0%, #121512 100%);
+  }
+
+  ::selection {
+    background: rgba(63, 125, 78, 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================================
+   LEGACY COMPAT —— 旧雾感变量与全局类，仅为过渡期未重写视图保活。
+   Part D 完成后整块删除（见 Plan §3.4「旧 token 保留为兼容别名，逐步删」）。
+   ============================================================ */
 :root {
   --bg-main: #f3f0ea;
   --bg-soft: #fbf8f4;
@@ -12,7 +170,7 @@
   --border-main: rgba(110, 118, 128, 0.16);
   --danger: #c65d4b;
   --success: #4e8d71;
-  --warning: #bd8754;
+  --warning-legacy: #bd8754;
   --surface-base: rgba(255, 251, 247, 0.72);
   --surface-elevated: rgba(255, 255, 255, 0.88);
   --surface-strong: #fcfaf6;
@@ -20,124 +178,72 @@
   --glass-border: rgba(255, 255, 255, 0.55);
   --line-soft: rgba(66, 74, 86, 0.1);
   --line-strong: rgba(66, 74, 86, 0.16);
-  --accent-soft: rgba(95, 111, 133, 0.12);
-  --accent-strong: #556479;
+  --accent-soft: rgba(63, 125, 78, 0.08);
+  --accent-strong: #3f7d4e;
   --accent-ink: #eef3f8;
   --chat-surface: linear-gradient(180deg, rgba(255, 252, 248, 0.92) 0%, rgba(247, 243, 237, 0.9) 100%);
-  --chat-user-bg: linear-gradient(135deg, #5b697b 0%, #647387 100%);
-  --chat-user-border: rgba(85, 100, 121, 0.45);
+  --chat-user-bg: linear-gradient(135deg, #3f7d4e 0%, #4c8f5d 100%);
+  --chat-user-border: rgba(53, 106, 66, 0.45);
   --chat-user-text: #f8fafc;
-  --chat-user-selection-bg: #f1f6fc;
-  --chat-user-selection-text: #162131;
+  --chat-user-selection-bg: #e9f2ea;
+  --chat-user-selection-text: #1c3524;
   --chat-bot-bg: rgba(255, 255, 255, 0.76);
   --chat-bot-border: rgba(109, 120, 134, 0.14);
-  --chat-bot-selection-bg: #d4e3f8;
-  --chat-bot-selection-text: #162131;
-  --chat-input-selection-bg: rgba(95, 111, 133, 0.26);
+  --chat-bot-selection-bg: #d9ead9;
+  --chat-bot-selection-text: #1c3524;
+  --chat-input-selection-bg: rgba(63, 125, 78, 0.18);
   --chat-input-selection-text: #1f2630;
-  --overlay-bg: rgba(29, 35, 43, 0.28);
+  --overlay-bg: rgba(20, 30, 22, 0.28);
   --radius-main: 24px;
   --radius-small: 16px;
-  --radius-xl: 32px;
+  --radius-xl-old: 32px;
   --shadow-main: 0 24px 60px rgba(109, 94, 76, 0.12);
   --shadow-soft: 0 12px 30px rgba(92, 82, 70, 0.08);
   --shadow-float: 0 30px 80px rgba(78, 67, 56, 0.16);
-  --font-main: 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', sans-serif;
+  --font-main: -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', sans-serif;
 }
 
 [data-theme='dark'] {
-  --bg-main: #181b20;
-  --bg-soft: #1d2229;
-  --bg-panel: rgba(34, 39, 47, 0.84);
+  --bg-main: #15181a;
+  --bg-soft: #1a1e1b;
+  --bg-panel: rgba(26, 30, 27, 0.84);
   --bg-accent: #a3b2c6;
   --bg-accent-dark: #c2cfde;
-  --bg-admin: #1a1f26;
-  --text-main: #edf1f5;
+  --bg-admin: #15181a;
+  --text-main: #e8ece8;
   --text-title: #ffffff;
-  --text-soft: #a0adbb;
+  --text-soft: #9aa79d;
   --text-white: #12161b;
   --border-main: rgba(209, 219, 230, 0.09);
-  --danger: #f08b7f;
-  --success: #7ec59b;
-  --warning: #e0aa70;
-  --surface-base: rgba(33, 38, 45, 0.72);
-  --surface-elevated: rgba(39, 44, 53, 0.84);
-  --surface-strong: #252b33;
-  --surface-muted: rgba(29, 34, 41, 0.88);
+  --danger: #d97b64;
+  --success: #6faf7f;
+  --warning-legacy: #d9a94c;
+  --surface-base: rgba(26, 30, 27, 0.72);
+  --surface-elevated: rgba(30, 35, 31, 0.88);
+  --surface-strong: #20261f;
+  --surface-muted: rgba(24, 28, 25, 0.88);
   --glass-border: rgba(255, 255, 255, 0.08);
   --line-soft: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.12);
-  --accent-soft: rgba(163, 178, 198, 0.14);
-  --accent-strong: #d8e2ee;
+  --accent-soft: rgba(111, 175, 127, 0.12);
+  --accent-strong: #a9d4b2;
   --accent-ink: #1d2530;
-  --chat-surface: linear-gradient(180deg, rgba(31, 35, 42, 0.94) 0%, rgba(24, 28, 34, 0.96) 100%);
-  --chat-user-bg: linear-gradient(135deg, #58677a 0%, #647386 100%);
+  --chat-surface: linear-gradient(180deg, rgba(28, 33, 29, 0.94) 0%, rgba(21, 24, 21, 0.96) 100%);
+  --chat-user-bg: linear-gradient(135deg, #35693f 0%, #3f7d4e 100%);
   --chat-user-border: rgba(201, 213, 226, 0.18);
   --chat-user-text: #f3f7fb;
-  --chat-user-selection-bg: rgba(225, 235, 246, 0.78);
-  --chat-user-selection-text: #1f2b3a;
-  --chat-bot-bg: rgba(39, 45, 54, 0.86);
+  --chat-user-selection-bg: rgba(225, 235, 226, 0.78);
+  --chat-user-selection-text: #1c2b1f;
+  --chat-bot-bg: rgba(30, 35, 31, 0.86);
   --chat-bot-border: rgba(255, 255, 255, 0.08);
-  --chat-bot-selection-bg: rgba(225, 235, 246, 0.78);
-  --chat-bot-selection-text: #1f2b3a;
-  --chat-input-selection-bg: rgba(216, 226, 238, 0.28);
+  --chat-bot-selection-bg: rgba(225, 235, 226, 0.78);
+  --chat-bot-selection-text: #1c2b1f;
+  --chat-input-selection-bg: rgba(216, 226, 218, 0.28);
   --chat-input-selection-text: #f3f7fb;
-  --overlay-bg: rgba(3, 6, 10, 0.58);
+  --overlay-bg: rgba(3, 6, 4, 0.58);
   --shadow-main: 0 24px 60px rgba(0, 0, 0, 0.34);
   --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
   --shadow-float: 0 30px 80px rgba(0, 0, 0, 0.42);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#app {
-  margin: 0;
-  min-height: 100%;
-}
-
-body {
-  font-family: var(--font-main);
-  color: var(--text-main);
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 30%),
-    radial-gradient(circle at 85% 10%, rgba(195, 206, 220, 0.24), transparent 26%),
-    radial-gradient(circle at 20% 90%, rgba(220, 208, 193, 0.26), transparent 28%),
-    linear-gradient(180deg, #f8f5f0 0%, #f1ede7 100%);
-  letter-spacing: 0.1px;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-[data-theme='dark'] body {
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 26%),
-    radial-gradient(circle at 80% 10%, rgba(163, 178, 198, 0.12), transparent 24%),
-    linear-gradient(180deg, #15191f 0%, #101419 100%);
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-  color: var(--text-main);
-}
-
-button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-::selection {
-  background: rgba(111, 128, 151, 0.22);
 }
 
 .pageWrap {
@@ -194,9 +300,6 @@ button {
   line-height: 1.6;
 }
 
-.softInput {
-}
-
 .primaryBtn,
 .ghostBtn {
   min-height: 44px;
@@ -209,15 +312,15 @@ button {
 
 .primaryBtn {
   border: 1px solid transparent;
-  background: linear-gradient(135deg, #5e6d81 0%, #4b596d 100%);
+  background: linear-gradient(135deg, #3f7d4e 0%, #356a42 100%);
   color: #f7f6f2;
-  box-shadow: 0 14px 28px rgba(86, 98, 116, 0.24);
+  box-shadow: 0 14px 28px rgba(63, 125, 78, 0.22);
 }
 
 .primaryBtn:hover {
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #4f5d71 0%, #424f61 100%);
-  box-shadow: 0 18px 30px rgba(70, 80, 96, 0.3);
+  background: linear-gradient(135deg, #356a42 0%, #2d5c39 100%);
+  box-shadow: 0 18px 30px rgba(53, 106, 66, 0.28);
 }
 
 .primaryBtn:disabled {
@@ -236,7 +339,7 @@ button {
 
 .ghostBtn:hover {
   transform: translateY(-1px);
-  border-color: rgba(100, 111, 125, 0.28);
+  border-color: rgba(63, 125, 78, 0.28);
   background: rgba(255, 255, 255, 0.76);
 }
 
@@ -290,8 +393,8 @@ button {
 .toolbarRow input:focus,
 .toolbarRow select:focus {
   outline: none;
-  border-color: rgba(95, 111, 133, 0.46);
-  box-shadow: 0 0 0 4px rgba(95, 111, 133, 0.12);
+  border-color: rgba(63, 125, 78, 0.46);
+  box-shadow: 0 0 0 4px rgba(63, 125, 78, 0.12);
 }
 
 .formItem {
@@ -429,7 +532,7 @@ tr:hover td {
 
 .tagWarn {
   background: rgba(197, 147, 94, 0.12);
-  color: var(--warning);
+  color: var(--warning-legacy);
   border-color: rgba(197, 147, 94, 0.18);
 }
 
@@ -468,3 +571,4 @@ tr:hover td {
     width: 100%;
   }
 }
+/* ===== LEGACY COMPAT 结束 ===== */

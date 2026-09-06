@@ -6,6 +6,13 @@ import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import { getUserProfile } from '../../api/auth'
 import { getCurrentTheme, toggleTheme } from '../../utils/theme'
+import Button from '@/components/ui/button/Button.vue'
+import Sheet from '@/components/ui/sheet/Sheet.vue'
+import SheetTrigger from '@/components/ui/sheet/SheetTrigger.vue'
+import SheetContent from '@/components/ui/sheet/SheetContent.vue'
+import SheetHeader from '@/components/ui/sheet/SheetHeader.vue'
+import SheetTitle from '@/components/ui/sheet/SheetTitle.vue'
+import { MessageCircle, UserRound, LogOut, Sun, Moon, Menu, Sparkles } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,8 +22,8 @@ const sidebarOpen = ref(false)
 const currentTheme = ref(getCurrentTheme())
 
 const menuItems = [
-  { key: 'chat', label: '对话', path: '/app/chat' },
-  { key: 'profile', label: '我的', path: '/app/profile' }
+  { key: 'chat', label: '对话', path: '/app/chat', icon: MessageCircle },
+  { key: 'profile', label: '我的', path: '/app/profile', icon: UserRound }
 ]
 
 const activePath = computed(() => route.path)
@@ -31,6 +38,11 @@ const memberTag = computed(() => {
     return `已过期 · ${dayjs(profile.memberExpireAt).format('YYYY-MM-DD')}`
   }
   return `有效期至 ${dayjs(profile.memberExpireAt).format('YYYY-MM-DD HH:mm')}`
+})
+
+const memberActive = computed(() => {
+  const profile = authStore.profile
+  return Boolean(profile?.memberExpireAt) && !dayjs(profile.memberExpireAt).isBefore(dayjs())
 })
 
 const jump = (path) => {
@@ -63,343 +75,101 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="userWorkspaceShell pageWrap">
-    <aside class="userSidebar card" :class="['panelShell', { open: sidebarOpen }]">
-      <div class="sidebarGlow"></div>
-      <div class="sidebarHead">
-        <span class="sectionLabel">Workspace</span>
-        <div class="profileMeta">
-          <strong>{{ authStore.profile?.nickname || '用户' }}</strong>
-          <p class="mutedText">{{ memberTag }}</p>
+  <section class="flex min-h-dvh">
+    <!-- 桌面常驻侧栏 -->
+    <aside class="sticky top-0 hidden h-dvh w-72 shrink-0 flex-col gap-5 border-r border-border bg-card/60 p-5 backdrop-blur-xl md:flex">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <Sparkles class="size-5" />
+        </span>
+        <div class="min-w-0">
+          <p class="truncate text-[15px] font-bold text-foreground">{{ authStore.profile?.nickname || '用户' }}</p>
+          <p class="truncate text-xs text-muted-foreground">{{ memberTag }}</p>
         </div>
       </div>
 
-      <nav class="sidebarNav">
+      <nav class="mt-2 flex flex-col gap-1.5">
         <button
           v-for="item in menuItems"
           :key="item.key"
-          class="menuBtn"
-          :class="{ active: activePath === item.path }"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3.5 text-[15px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :class="activePath === item.path
+            ? 'bg-accent text-accent-foreground'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
           @click="jump(item.path)"
         >
-          <span class="menuBtnTitle">{{ item.label }}</span>
+          <component :is="item.icon" class="size-[18px] shrink-0" />
+          {{ item.label }}
         </button>
       </nav>
 
-      <div class="sidebarFooter">
-        <button
-          class="themeRoundBtn"
-          :title="currentTheme === 'dark' ? '切换浅色' : '切换深色'"
-          @click="switchTheme"
-        >
-          <span v-if="currentTheme === 'dark'" class="themeIcon sun"></span>
-          <span v-else class="themeIcon moon"></span>
-        </button>
-        <button class="ghostBtn logoutBtn" @click="logout">退出<br />登录</button>
+      <div class="mt-auto flex flex-col gap-3">
+        <Button variant="outline" class="justify-start gap-3 text-muted-foreground" @click="switchTheme">
+          <Sun v-if="currentTheme === 'dark'" class="size-4 text-warning" />
+          <Moon v-else class="size-4 text-info" />
+          {{ currentTheme === 'dark' ? '切换浅色' : '切换深色' }}
+        </Button>
+        <Button variant="ghost" class="justify-start gap-3 text-muted-foreground hover:text-destructive" @click="logout">
+          <LogOut class="size-4" />
+          退出登录
+        </Button>
       </div>
     </aside>
 
-    <section class="workspaceMain contentContainer">
-      <header class="mobileWorkspaceBar card" :class="'panelShell'">
-        <button class="ghostBtn" @click="sidebarOpen = !sidebarOpen">菜单</button>
-        <div class="mobileBarMeta">
-          <strong>{{ authStore.profile?.nickname || '用户' }}</strong>
-          <small class="mutedText">{{ memberTag }}</small>
+    <!-- 主内容区 -->
+    <section class="flex min-w-0 flex-1 flex-col">
+      <!-- 移动顶栏 -->
+      <header class="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur-xl md:hidden">
+        <Sheet>
+          <SheetTrigger as-child>
+            <Button variant="ghost" size="icon" aria-label="打开菜单">
+              <Menu class="size-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" class="w-72">
+            <SheetHeader>
+              <SheetTitle class="flex items-center gap-2">
+                <span class="inline-flex size-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Sparkles class="size-4" />
+                </span>
+                Thallo
+              </SheetTitle>
+            </SheetHeader>
+            <nav class="flex flex-col gap-1.5 px-3">
+              <button
+                v-for="item in menuItems"
+                :key="item.key"
+                class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3.5 text-[15px] font-medium transition-colors"
+                :class="activePath === item.path ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted'"
+                @click="jump(item.path)"
+              >
+                <component :is="item.icon" class="size-[18px] shrink-0" />
+                {{ item.label }}
+              </button>
+            </nav>
+            <div class="mt-auto flex flex-col gap-2 p-4">
+              <Button variant="outline" class="justify-start gap-3" @click="switchTheme">
+                <Sun v-if="currentTheme === 'dark'" class="size-4 text-warning" />
+                <Moon v-else class="size-4 text-info" />
+                {{ currentTheme === 'dark' ? '切换浅色' : '切换深色' }}
+              </Button>
+              <Button variant="ghost" class="justify-start gap-3 text-muted-foreground hover:text-destructive" @click="logout">
+                <LogOut class="size-4" />
+                退出登录
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <div class="min-w-0 text-right">
+          <p class="truncate text-sm font-bold text-foreground">{{ authStore.profile?.nickname || '用户' }}</p>
+          <p class="truncate text-xs text-muted-foreground">{{ memberTag }}</p>
         </div>
       </header>
 
-      <section class="workspaceView">
+      <main class="min-h-0 flex-1">
         <router-view />
-      </section>
+      </main>
     </section>
-
-    <div v-if="sidebarOpen" class="sidebarMask" @click.self="closeSidebar"></div>
   </section>
 </template>
-
-<style scoped>
-.userWorkspaceShell {
-  display: grid;
-  grid-template-columns: 310px 1fr;
-  gap: 22px;
-  padding: 22px;
-  min-height: 100dvh;
-}
-
-.userSidebar {
-  position: sticky;
-  top: 22px;
-  height: calc(100dvh - 44px);
-  display: flex;
-  flex-direction: column;
-  padding: 22px;
-  overflow: hidden;
-}
-
-.sidebarGlow {
-  position: absolute;
-  inset: auto auto -80px -40px;
-  width: 220px;
-  height: 220px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(193, 201, 211, 0.42) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.sidebarHead {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 18px;
-  justify-items: center;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.profileMeta {
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-  text-align: center;
-}
-
-.profileMeta strong {
-  font-size: 28px;
-  color: var(--text-title);
-  line-height: 1.05;
-}
-
-.profileMeta p {
-  margin: 0;
-  line-height: 1.55;
-}
-
-.sidebarNav {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.menuBtn {
-  width: 100%;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.3);
-  text-align: center;
-  padding: 16px 18px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-}
-
-[data-theme='dark'] .menuBtn {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.02);
-}
-
-.menuBtn:hover {
-  transform: translateY(-1px);
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.54);
-}
-
-[data-theme='dark'] .menuBtn:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.menuBtn.active {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.74) 0%, rgba(238, 235, 231, 0.86) 100%);
-  border-color: rgba(92, 102, 118, 0.18);
-  box-shadow: var(--shadow-soft);
-}
-
-[data-theme='dark'] .menuBtn.active {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(163, 178, 198, 0.12) 100%);
-  border-color: rgba(163, 178, 198, 0.16);
-}
-
-.menuBtnTitle {
-  font-size: 16px;
-  color: var(--text-title);
-  font-weight: 700;
-}
-
-.sidebarFooter {
-  position: relative;
-  z-index: 1;
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--line-soft);
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-}
-
-.logoutBtn {
-  width: 100%;
-}
-
-.themeRoundBtn {
-  width: 46px;
-  height: 46px;
-  border-radius: 16px;
-  border: 1px solid var(--line-strong);
-  background: rgba(255, 255, 255, 0.46);
-  color: var(--text-main);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-[data-theme='dark'] .themeRoundBtn {
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.themeIcon {
-  width: 16px;
-  height: 16px;
-  display: inline-block;
-}
-
-.themeIcon.sun {
-  border-radius: 50%;
-  background: #f3c979;
-  box-shadow: 0 0 0 4px rgba(243, 201, 121, 0.2);
-}
-
-.themeIcon.moon {
-  border-radius: 50%;
-  background: #cad5e3;
-  position: relative;
-}
-
-.themeIcon.moon::after {
-  content: '';
-  position: absolute;
-  right: -2px;
-  top: -2px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.workspaceMain {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-}
-
-.workspaceView {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-
-.mobileWorkspaceBar {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
-}
-
-.mobileBarMeta {
-  min-width: 0;
-  display: grid;
-  text-align: right;
-}
-
-.mobileBarMeta strong,
-.mobileBarMeta small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 960px) {
-  .userWorkspaceShell {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 14px;
-  }
-
-  .userSidebar {
-    position: fixed;
-    left: 14px;
-    top: 14px;
-    width: clamp(96px, 33.333vw, 140px);
-    height: calc(100dvh - 28px);
-    transform: translateX(calc(-100% - 20px));
-    transition: transform 0.22s ease;
-    z-index: 50;
-  }
-
-  .sidebarHead {
-    gap: 12px;
-    padding-bottom: 16px;
-  }
-
-  .profileMeta {
-    gap: 6px;
-  }
-
-  .profileMeta strong {
-    font-size: 20px;
-  }
-
-  .profileMeta p {
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .sidebarNav {
-    gap: 8px;
-    margin-top: 14px;
-  }
-
-  .menuBtn {
-    padding: 12px 10px;
-    border-radius: 16px;
-  }
-
-  .menuBtnTitle {
-    font-size: 14px;
-    line-height: 1.2;
-  }
-
-  .sidebarFooter {
-    gap: 10px;
-    padding-top: 16px;
-  }
-
-  .logoutBtn {
-    min-height: 40px;
-    padding: 0 12px;
-    font-size: 13px;
-    line-height: 1.3;
-    white-space: nowrap;
-  }
-
-  .userSidebar.open {
-    transform: translateX(0);
-  }
-
-  .sidebarMask {
-    position: fixed;
-    inset: 0;
-    background: var(--overlay-bg);
-    z-index: 40;
-  }
-
-  .mobileWorkspaceBar {
-    display: flex;
-  }
-}
-</style>

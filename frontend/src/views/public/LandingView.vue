@@ -1,31 +1,40 @@
-<template>
-  <section class="landingShell pageWrap">
-    <div class="landingBackdrop"></div>
+<script setup>
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Button from '@/components/ui/button/Button.vue'
+import { Sparkles } from 'lucide-vue-next'
+</script>
 
-    <div class="landingWrap contentContainer">
-      <article class="landingPanel card panelShell">
-        <div class="landingActions">
-          <router-link class="primaryBtn landingCta" to="/login">开启灵感</router-link>
+<template>
+  <section class="relative grid min-h-screen place-items-center overflow-hidden px-4 py-6">
+    <div class="landingBackdrop absolute inset-0"></div>
+
+    <Card class="relative z-10 w-full max-w-xl bg-white/10 text-center text-primary-foreground backdrop-blur-xl">
+      <CardContent class="flex flex-col items-center gap-6 p-8 sm:p-10">
+        <span class="inline-flex size-14 items-center justify-center rounded-2xl bg-primary/20 text-primary-foreground">
+          <Sparkles class="size-7" />
+        </span>
+        <div class="space-y-3">
+          <h1 class="text-3xl leading-tight font-bold sm:text-4xl">Thallo</h1>
+          <p class="text-[15px] leading-relaxed text-white/80">
+            轻量的 AI 对话与塔罗解读空间——开一张牌，聊一段心事，答案即刻呈现。
+          </p>
         </div>
-      </article>
-    </div>
+        <Button as-child size="lg" class="min-w-44 bg-primary text-primary-foreground shadow-lg hover:bg-primary-hover">
+          <router-link to="/login" class="inline-flex items-center gap-2">
+            <Sparkles class="size-4" />
+            开启灵感
+          </router-link>
+        </Button>
+      </CardContent>
+    </Card>
   </section>
 </template>
 
 <style scoped>
-.landingShell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  overflow: hidden;
-}
-
 .landingBackdrop {
-  position: absolute;
-  inset: 0;
   background:
-    linear-gradient(120deg, rgba(34, 40, 49, 0.62), rgba(75, 86, 100, 0.36)),
+    linear-gradient(120deg, rgba(28, 44, 32, 0.66), rgba(63, 125, 78, 0.3)),
     url('/assets/login-bg.png') center/cover;
   filter: saturate(0.88);
 }
@@ -35,48 +44,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 28%),
-    rgba(18, 23, 29, 0.18);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.2), transparent 28%),
+    rgba(16, 26, 19, 0.2);
   backdrop-filter: blur(8px);
-}
-
-.landingWrap {
-  position: relative;
-  z-index: 1;
-  width: min(1160px, 100%);
-}
-
-.landingPanel {
-  width: min(520px, 100%);
-  margin: 0 auto;
-  padding: 32px 24px;
-  color: #f8f7f3;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow: var(--shadow-float);
-  text-align: center;
-}
-
-.landingActions {
-  display: flex;
-  justify-content: center;
-}
-
-.landingCta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 168px;
-  text-align: center;
-}
-
-@media (max-width: 640px) {
-  .landingShell {
-    padding: 14px;
-  }
-
-  .landingPanel {
-    padding: 26px 18px;
-  }
 }
 </style>

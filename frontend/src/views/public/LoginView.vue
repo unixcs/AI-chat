@@ -6,6 +6,12 @@ import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import { storeDraftSessionFlag, storeFreshChatFlag } from '../../utils/chat-entry'
 import { applyTheme } from '../../utils/theme'
+import AuthShell from '@/components/layout/AuthShell.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Label from '@/components/ui/label/Label.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import { Sparkles } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
@@ -46,127 +52,36 @@ const submitLogin = async () => {
 </script>
 
 <template>
-  <section class="authShell pageWrap">
-    <div class="authBackdrop"></div>
-
-    <div class="authGrid contentContainer">
-      <article class="authSurface card" :class="'panelShell'">
-        <h2 class="sectionTitle authTitle">欢迎登陆Thallo 🔮</h2>
-        <p class="authDesc">使用手机号密码登录以开始解读</p>
-
-        <div class="formItem">
-          <label>手机号</label>
-          <input v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
-        </div>
-        <div class="formItem">
-          <label>密码</label>
-          <input v-model="formState.password" type="password" placeholder="请输入密码" />
-        </div>
-
-        <p v-if="errorText" class="dangerText authError">{{ errorText }}</p>
-
-        <button class="primaryBtn fullBtn" :disabled="loading" @click="submitLogin">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-
-        <div class="authActions">
-          <router-link to="/register">没有账号？去注册</router-link>
-        </div>
-      </article>
+  <AuthShell>
+    <div class="mb-6 flex flex-col items-center gap-3 text-center">
+      <span class="inline-flex size-12 items-center justify-center rounded-2xl bg-primary/25 text-primary-foreground">
+        <Sparkles class="size-6" />
+      </span>
+      <h1 class="text-2xl leading-tight font-bold text-white">欢迎登陆 Thallo</h1>
+      <p class="text-[13px] text-white/75">使用手机号密码登录以开始解读</p>
     </div>
-  </section>
+
+    <form class="space-y-4" @submit.prevent="submitLogin">
+      <div class="space-y-2">
+        <Label class="text-white/85" for="login-phone">手机号</Label>
+        <Input id="login-phone" v-model="formState.phone" maxlength="11" placeholder="请输入手机号" />
+      </div>
+      <div class="space-y-2">
+        <Label class="text-white/85" for="login-password">密码</Label>
+        <Input id="login-password" v-model="formState.password" type="password" placeholder="请输入密码" />
+      </div>
+
+      <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
+
+      <Button type="submit" class="w-full" :disabled="loading">
+        {{ loading ? '登录中...' : '登录' }}
+      </Button>
+
+      <p class="text-right text-[13px]">
+        <router-link to="/register" class="font-semibold text-white/85 transition-colors hover:text-white">
+          没有账号？去注册
+        </router-link>
+      </p>
+    </form>
+  </AuthShell>
 </template>
-
-<style scoped>
-.authShell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  overflow: hidden;
-}
-
-.authBackdrop {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, rgba(31, 38, 48, 0.56), rgba(82, 91, 105, 0.34)),
-    url('/assets/login-bg.png') center / cover no-repeat;
-  filter: blur(1px) saturate(0.88);
-  transform: scale(1.03);
-}
-
-.authBackdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 30%),
-    rgba(19, 24, 31, 0.18);
-  backdrop-filter: blur(10px);
-}
-
-.authGrid {
-  position: relative;
-  z-index: 1;
-  width: min(1220px, 100%);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.authSurface {
-  padding: 28px;
-  width: min(440px, 100%);
-  margin: 0 auto;
-}
-
-.authTitle {
-  text-align: center;
-  margin-top: 8px;
-  margin-bottom: 6px;
-}
-
-.authDesc {
-  margin: 0 0 22px;
-  color: var(--text-soft);
-  font-size: 13px;
-  line-height: 1.65;
-  text-align: center;
-}
-
-.authError {
-  margin: 0 0 12px;
-}
-
-.fullBtn {
-  width: 100%;
-}
-
-.authActions {
-  margin-top: 16px;
-  text-align: right;
-}
-
-.authActions a {
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-@media (max-width: 960px) {
-  .authGrid {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .authShell {
-    padding: 14px;
-  }
-
-  .authSurface {
-    padding: 20px;
-  }
-}
-</style>

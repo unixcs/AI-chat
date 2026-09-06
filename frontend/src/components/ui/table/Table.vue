@@ -1,0 +1,11 @@
+<script setup>
+import { cn } from '@/lib/utils'
+const props = defineProps({ class: { type: null, default: '' } })
+</script>
+<template>
+  <div class="relative w-full overflow-x-auto">
+    <table :class="cn('w-full caption-bottom border-collapse text-sm', props.class)">
+      <slot />
+    </table>
+  </div>
+</template>

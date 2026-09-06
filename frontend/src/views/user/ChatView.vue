@@ -7,6 +7,30 @@ import { consumeFreshChatFlag, hasDraftSessionFlag, shouldStartFreshOnChatEntry 
 import { renderMarkdownToSafeHtml } from '../../utils/markdown'
 import { copyText } from '../../utils/clipboard'
 import { updatePreferences, getCurrentAnnouncement, ackAnnouncement } from '../../api/user-extras'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
+import Popover from '@/components/ui/popover/Popover.vue'
+import PopoverTrigger from '@/components/ui/popover/PopoverTrigger.vue'
+import PopoverContent from '@/components/ui/popover/PopoverContent.vue'
+import Sheet from '@/components/ui/sheet/Sheet.vue'
+import SheetContent from '@/components/ui/sheet/SheetContent.vue'
+import SheetHeader from '@/components/ui/sheet/SheetHeader.vue'
+import SheetTitle from '@/components/ui/sheet/SheetTitle.vue'
+import AlertDialog from '@/components/ui/alert-dialog/AlertDialog.vue'
+import AlertDialogContent from '@/components/ui/alert-dialog/AlertDialogContent.vue'
+import AlertDialogHeader from '@/components/ui/alert-dialog/AlertDialogHeader.vue'
+import AlertDialogTitle from '@/components/ui/alert-dialog/AlertDialogTitle.vue'
+import AlertDialogDescription from '@/components/ui/alert-dialog/AlertDialogDescription.vue'
+import AlertDialogFooter from '@/components/ui/alert-dialog/AlertDialogFooter.vue'
+import AlertDialogAction from '@/components/ui/alert-dialog/AlertDialogAction.vue'
+import AlertDialogCancel from '@/components/ui/alert-dialog/AlertDialogCancel.vue'
+import Dialog from '@/components/ui/dialog/Dialog.vue'
+import DialogContent from '@/components/ui/dialog/DialogContent.vue'
+import DialogHeader from '@/components/ui/dialog/DialogHeader.vue'
+import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
+import DialogFooter from '@/components/ui/dialog/DialogFooter.vue'
+import { Sparkles, Copy, Check, SlidersHorizontal, History, Square, Send, Plus, Trash2 } from 'lucide-vue-next'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -26,7 +50,7 @@ let copiedTimer = null
 // 智能滚动：只有用户本来就在底部时才跟随输出
 const isNearBottom = ref(true)
 
-// 回答模式（长度 × 风格）
+// 回答模式（长度 × 风格 × 格式）
 const showAnswerPrefs = ref(false)
 const answerLength = ref(authStore.profile?.answerLength || 'standard')
 const answerStyle = ref(authStore.profile?.answerStyle || 'standard')
@@ -51,6 +75,9 @@ const answerFormatOptions = [
 // 一次性公告
 const announcement = ref(null)
 const announcementTitle = ref('')
+
+// 删除对话的确认弹层（Plan §3.3：删除 AlertDialog）
+const pendingDeleteId = ref(null)
 
 const activeMessages = computed(() => {
   const id = chatStore.activeConversationId
@@ -99,6 +126,14 @@ const removeConversation = async (conversationId) => {
     await chatStore.deleteConversation(conversationId)
   } catch (error) {
     errorText.value = error.response?.data?.message || '删除失败'
+  }
+}
+
+const confirmRemoveConversation = async () => {
+  const id = pendingDeleteId.value
+  pendingDeleteId.value = null
+  if (id) {
+    await removeConversation(id)
   }
 }
 
@@ -329,33 +364,39 @@ watch(lastMessageLength, async () => {
 </script>
 
 <template>
-  <section class="chatStage">
-    <section class="chatPanel card panelShell">
-      <div ref="messageListRef" class="messageViewport" @scroll="onMessageScroll">
-        <div v-if="activeMessages.length === 0" class="emptyState">
-          <h2>告诉我你有什么想法</h2>
-          <p class="emptyHint">开始新的对话吧</p>
+  <section class="flex h-full min-h-0 flex-col md:px-5 md:py-4">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-border bg-card/45 backdrop-blur-xl md:rounded-2xl md:border md:shadow-[var(--shadow-elevated)]">
+      <div ref="messageListRef" class="min-h-0 flex-1 overflow-y-auto px-3.5 py-5 sm:px-6" @scroll="onMessageScroll">
+        <div v-if="activeMessages.length === 0" class="grid min-h-full place-content-center justify-items-center gap-2 px-6 py-12 text-center">
+          <span class="mb-2 inline-flex size-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
+            <Sparkles class="size-7" />
+          </span>
+          <h2 class="m-0 text-2xl font-bold text-foreground sm:text-3xl">告诉我你有什么想法</h2>
+          <p class="text-sm text-muted-foreground">开始新的对话吧</p>
         </div>
 
         <article
           v-for="msg in activeMessages"
           :key="msg.id"
-          class="messageRow"
-          :class="msg.role === 'user' ? 'isUser' : 'isBot'"
+          class="mb-4.5 flex w-full items-start gap-2.5 sm:gap-3.5"
+          :class="msg.role === 'user' ? 'flex-row-reverse justify-start' : 'flex-row'"
         >
           <img
-            class="messageAvatar"
+            class="size-9 shrink-0 rounded-xl object-cover shadow-sm sm:size-10"
             :src="msg.role === 'user' ? '/assets/user-avatar.png' : '/assets/ai-avatar.png'"
             :alt="msg.role === 'user' ? '用户头像' : 'AI头像'"
           />
 
-          <div class="messageMeta">
-            <span class="messageRole">{{ msg.role === 'user' ? '你' : 'Thallo' }}</span>
-            <div class="messageBubble">
+          <div class="grid w-full max-w-full min-w-0 gap-1.5 sm:max-w-[860px]" :class="msg.role === 'user' ? 'justify-items-end' : 'justify-items-start'">
+            <span class="text-xs font-bold tracking-wide text-muted-foreground">{{ msg.role === 'user' ? '你' : 'Thallo' }}</span>
+            <div
+              class="min-w-0 w-fit max-w-full rounded-2xl px-4 py-3 text-[15px] leading-[1.75] shadow-sm sm:max-w-[min(82%,760px)]"
+              :class="msg.role === 'user' ? 'chatUserBubble' : 'chatBotBubble'"
+            >
               <div v-if="msg.role === 'assistant'">
                 <span
                   v-if="chatStore.streaming && msg.id === chatStore.streamingAssistantId"
-                  class="streamingPlainText"
+                  class="block break-words whitespace-pre-wrap"
                 >{{ msg.content }}</span>
                 <div
                   v-else
@@ -363,348 +404,282 @@ watch(lastMessageLength, async () => {
                   v-html="renderAssistantContent(msg.content)"
                 />
               </div>
-              <p v-else>{{ msg.content }}</p>
+              <p v-else class="m-0 break-words whitespace-pre-wrap">{{ msg.content }}</p>
             </div>
-            <div class="messageFooter">
-              <time>{{ formatTime(msg.createdAt) }}</time>
+            <div class="flex items-center gap-2.5">
+              <time class="text-xs text-faint">{{ formatTime(msg.createdAt) }}</time>
               <button
-                class="copyBtn"
-                :class="{ copied: copiedMessageId === msg.id }"
-                :title="copiedMessageId === msg.id ? '已复制' : '复制'"
+                class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors duration-150"
+                :class="copiedMessageId === msg.id
+                  ? 'border-primary/35 bg-accent text-primary'
+                  : 'border-border bg-card/70 text-muted-foreground hover:text-foreground'"
                 :aria-label="copiedMessageId === msg.id ? '已复制' : '复制消息'"
-                @click="copyMessage(msg)"
               >
-                <svg v-if="copiedMessageId !== msg.id" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 3h11a1 1 0 0 1 1 1v12h-2V5H8V3zM5 7h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1 2v10h9V9H6z" />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-                </svg>
-                <span class="copyLabel">{{ copiedMessageId === msg.id ? '已复制' : '复制' }}</span>
+                <Check v-if="copiedMessageId === msg.id" class="size-3.5" />
+                <Copy v-else class="size-3.5" />
+                <span>{{ copiedMessageId === msg.id ? '已复制' : '复制' }}</span>
               </button>
             </div>
           </div>
         </article>
 
-        <div v-if="chatStore.streaming" class="typingTips mutedText">
+        <div v-if="chatStore.streaming" class="py-3.5 text-center text-xs text-muted-foreground">
           灵感开启中，请稍等片刻...
         </div>
       </div>
 
-      <div class="composerShell">
-        <div v-if="showAnswerPrefs" class="answerPrefsPanel card">
-          <div class="prefGroup">
-            <span class="prefLabel">回答长度</span>
-            <div class="prefChips">
-              <button
-                v-for="opt in answerLengthOptions"
-                :key="opt.value"
-                class="prefChip"
-                :class="{ active: answerLength === opt.value }"
-                @click="setAnswerLength(opt.value)"
-              >{{ opt.label }}</button>
-            </div>
-          </div>
-          <div class="prefGroup">
-            <span class="prefLabel">回答风格</span>
-            <div class="prefChips">
-              <button
-                v-for="opt in answerStyleOptions"
-                :key="opt.value"
-                class="prefChip"
-                :class="{ active: answerStyle === opt.value }"
-                @click="setAnswerStyle(opt.value)"
-              >{{ opt.label }}</button>
-            </div>
-          </div>
-          <div class="prefGroup">
-            <span class="prefLabel">输出格式</span>
-            <div class="prefChips">
-              <button
-                v-for="opt in answerFormatOptions"
-                :key="opt.value"
-                class="prefChip"
-                :class="{ active: answerFormat === opt.value }"
-                @click="setAnswerFormat(opt.value)"
-              >{{ opt.label }}</button>
-            </div>
-          </div>
-        </div>
+      <div class="shrink-0 border-t border-border bg-card/70 px-3 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
+        <Popover :open="showAnswerPrefs" @update:open="showAnswerPrefs = $event">
+          <div class="mx-auto max-w-3xl">
+            <div class="flex items-end gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5 shadow-sm transition-colors focus-within:border-primary/50 sm:gap-3.5 sm:px-4">
+              <textarea
+                ref="composerTextareaRef"
+                v-model="inputValue"
+                rows="1"
+                placeholder="把你此刻最想问的内容写下来..."
+                class="composerTextarea"
+                @keydown="onComposerKeydown"
+              />
 
-        <div class="composerSurface">
-          <textarea
-            ref="composerTextareaRef"
-            v-model="inputValue"
-            rows="1"
-            placeholder="把你此刻最想问的内容写下来..."
-            @keydown="onComposerKeydown"
-          />
+              <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="回答模式"
+                    aria-label="回答模式"
+                    :class="showAnswerPrefs ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
+                  >
+                    <SlidersHorizontal class="size-[18px]" />
+                  </Button>
+                </PopoverTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="历史对话"
+                  aria-label="历史对话"
+                  class="hidden text-muted-foreground sm:inline-flex"
+                  @click="openHistoryDrawer"
+                >
+                  <History class="size-[18px]" />
+                </Button>
+                <Button
+                  v-if="chatStore.streaming"
+                  variant="outline"
+                  size="icon"
+                  title="停止生成"
+                  aria-label="停止生成"
+                  class="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                  @click="stopGenerating"
+                >
+                  <Square class="size-4" />
+                </Button>
+                <Button
+                  v-else
+                  size="icon"
+                  title="发送消息"
+                  aria-label="发送消息"
+                  class="shadow-md"
+                  @click="submitMessage"
+                >
+                  <Send class="size-4" />
+                </Button>
+              </div>
+            </div>
 
-          <div class="composerActions">
+            <!-- 移动端：历史入口并入操作行下方 -->
             <button
-              class="circleIconBtn historyIconBtn"
-              title="历史对话"
-              aria-label="历史对话"
+              class="mx-auto mt-2 flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground sm:hidden"
               @click="openHistoryDrawer"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M5 5.75A1.75 1.75 0 0 1 6.75 4h10.5A1.75 1.75 0 0 1 19 5.75v12.5A1.75 1.75 0 0 1 17.25 20H6.75A1.75 1.75 0 0 1 5 18.25V5.75zm2.5.75v2h9v-2h-9zm0 4v2h9v-2h-9zm0 4v2h6v-2h-6z"
-                />
-              </svg>
-              <span class="historyBtnLabel">历史</span>
-            </button>
-            <button
-              class="circleIconBtn prefIconBtn"
-              :class="{ active: showAnswerPrefs }"
-              title="回答模式"
-              aria-label="回答模式"
-              @click="showAnswerPrefs = !showAnswerPrefs"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 5h16v2H4V5zm0 6h10v2H4v-2zm0 6h7v2H4v-2zm13-.2 2.1-2.1 1.4 1.4L18.4 18l2.1 2.1-1.4 1.4L17 19.4l-2.1 2.1-1.4-1.4 2.1-2.1-2.1-2.1 1.4-1.4 2.1 2.1z" />
-              </svg>
-            </button>
-            <button
-              v-if="chatStore.streaming"
-              class="circleIconBtn stopIconBtn"
-              title="停止生成"
-              aria-label="停止生成"
-              @click="stopGenerating"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 7h10v10H7z" />
-              </svg>
-            </button>
-            <button
-              v-else
-              class="circleIconBtn sendIconBtn"
-              title="发送消息"
-              aria-label="发送消息"
-              @click="submitMessage"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 20l18-8L3 4v6l12 2-12 2v6z" />
-              </svg>
+              <History class="size-4" />
+              历史对话
             </button>
           </div>
-        </div>
 
-        <p v-if="errorText" class="dangerText composerError">{{ errorText }}</p>
+          <!-- 偏好弹层（三维度：长度 × 风格 × 格式） -->
+          <PopoverContent side="top" align="end" :side-offset="10" class="w-[min(92vw,380px)] rounded-xl">
+            <div class="grid gap-3.5">
+              <div>
+                <p class="mb-2 text-xs font-bold text-muted-foreground">回答长度</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="opt in answerLengthOptions"
+                    :key="opt.value"
+                    class="min-h-9 cursor-pointer rounded-lg border px-3 text-[13px] font-medium transition-colors duration-150"
+                    :class="answerLength === opt.value
+                      ? 'border-primary/40 bg-accent font-bold text-accent-foreground'
+                      : 'border-border bg-card/60 text-muted-foreground hover:bg-muted'"
+                    @click="setAnswerLength(opt.value)"
+                  >{{ opt.label }}</button>
+                </div>
+              </div>
+              <div>
+                <p class="mb-2 text-xs font-bold text-muted-foreground">回答风格</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="opt in answerStyleOptions"
+                    :key="opt.value"
+                    class="min-h-9 cursor-pointer rounded-lg border px-3 text-[13px] font-medium transition-colors duration-150"
+                    :class="answerStyle === opt.value
+                      ? 'border-primary/40 bg-accent font-bold text-accent-foreground'
+                      : 'border-border bg-card/60 text-muted-foreground hover:bg-muted'"
+                    @click="setAnswerStyle(opt.value)"
+                  >{{ opt.label }}</button>
+                </div>
+              </div>
+              <div>
+                <p class="mb-2 text-xs font-bold text-muted-foreground">输出格式</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="opt in answerFormatOptions"
+                    :key="opt.value"
+                    class="min-h-9 cursor-pointer rounded-lg border px-3 text-[13px] font-medium transition-colors duration-150"
+                    :class="answerFormat === opt.value
+                      ? 'border-primary/40 bg-accent font-bold text-accent-foreground'
+                      : 'border-border bg-card/60 text-muted-foreground hover:bg-muted'"
+                    @click="setAnswerFormat(opt.value)"
+                  >{{ opt.label }}</button>
+                </div>
+              </div>
+              <p class="text-xs text-faint">三个维度独立生效，自由组合，对所有新对话生效。</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Alert v-if="errorText" variant="destructive" class="mx-auto mt-2.5 max-w-3xl">{{ errorText }}</Alert>
       </div>
-    </section>
+    </div>
 
-    <div v-if="showHistoryDrawer" class="historyDrawerMask" @click.self="closeHistoryDrawer">
-      <aside class="historyDrawerPanel card" :class="'panelShell'">
-        <div class="historyDrawerHead">
-          <div>
-            <span class="sectionLabel">History</span>
-            <h3>历史对话</h3>
-          </div>
-          <div class="historyActions">
-            <button class="ghostBtn" @click="closeHistoryDrawer">关闭</button>
-            <button class="primaryBtn" @click="addConversation">新建</button>
-          </div>
-        </div>
+    <!-- 历史对话 Sheet（桌面右侧抽屉 / 移动端全屏） -->
+    <Sheet :open="showHistoryDrawer" @update:open="showHistoryDrawer = $event">
+      <SheetContent side="right" class="w-full gap-0 p-0 sm:max-w-[400px]">
+        <SheetHeader class="flex-row items-center justify-between border-b border-border p-5">
+          <SheetTitle class="flex items-center gap-2 text-lg">
+            <History class="size-5 text-primary" />
+            历史对话
+          </SheetTitle>
+          <Button size="sm" class="min-h-9" @click="addConversation">
+            <Plus class="size-4" />
+            新建
+          </Button>
+        </SheetHeader>
 
-        <div
-          v-for="item in chatStore.list"
-          :key="item.id"
-          class="historyItem"
-          :class="{ active: chatStore.activeConversationId === item.id }"
-          role="button"
-          tabindex="0"
-          @click="selectConversation(item.id); closeHistoryDrawer()"
-          @keydown.enter="selectConversation(item.id); closeHistoryDrawer()"
-        >
-          <span class="historyTitle">{{ item.title }}</span>
-          <small>{{ formatTime(item.updatedAt) }}</small>
+        <div class="flex-1 overflow-y-auto p-4">
           <button
-            class="historyDeleteBtn"
-            title="删除对话"
-            aria-label="删除对话"
-            @click.stop="removeConversation(item.id)"
+            v-for="item in chatStore.list"
+            :key="item.id"
+            class="group relative mb-2.5 flex min-h-14 w-full cursor-pointer items-center justify-between gap-2.5 rounded-xl border px-4 py-3 text-left transition-colors duration-150"
+            :class="chatStore.activeConversationId === item.id
+              ? 'border-primary/30 bg-accent'
+              : 'border-border bg-card/60 hover:bg-muted'"
+            @click="selectConversation(item.id); closeHistoryDrawer()"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9zm4 3v7h2v-7h-2zm4 0v7h2v-7h-2z" />
-            </svg>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{{ item.title }}</span>
+            <small class="shrink-0 text-xs text-faint">{{ formatTime(item.updatedAt) }}</small>
+            <span
+              class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              title="删除对话"
+              aria-label="删除对话"
+              role="button"
+              tabindex="0"
+              @click.stop="pendingDeleteId = item.id"
+              @keydown.enter.stop="pendingDeleteId = item.id"
+            >
+              <Trash2 class="size-4" />
+            </span>
           </button>
+          <p v-if="chatStore.list.length === 0" class="py-8 text-center text-[13px] text-muted-foreground">还没有对话记录</p>
         </div>
-        <p v-if="chatStore.list.length === 0" class="mutedText historyEmpty">还没有对话记录</p>
-      </aside>
-    </div>
+      </SheetContent>
+    </Sheet>
 
-    <div v-if="announcement" class="announcementMask" @click.self="acknowledgeAnnouncement">
-      <div class="announcementPanel card panelShell" role="dialog" aria-modal="true">
-        <span class="sectionLabel">Announcement</span>
-        <h3>{{ announcement.title || '系统公告' }}</h3>
-        <p class="announcementContent">{{ announcement.content }}</p>
-        <button class="primaryBtn announcementAck" @click="acknowledgeAnnouncement">我知道了</button>
-      </div>
-    </div>
+    <!-- 删除对话确认 -->
+    <AlertDialog :open="pendingDeleteId !== null" @update:open="(v) => { if (!v) pendingDeleteId = null }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>删除这段对话？</AlertDialogTitle>
+          <AlertDialogDescription>删除后对话与其中全部消息不可恢复。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction class="bg-destructive text-destructive-foreground hover:opacity-90" @click="confirmRemoveConversation">
+            删除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- 一次性公告 -->
+    <Dialog :open="!!announcement" @update:open="(v) => { if (!v && announcement) acknowledgeAnnouncement() }">
+      <DialogContent class="max-w-md">
+        <DialogHeader>
+          <Badge class="w-fit">Announcement</Badge>
+          <DialogTitle>{{ announcement?.title || '系统公告' }}</DialogTitle>
+        </DialogHeader>
+        <p class="m-0 max-h-[50vh] overflow-y-auto text-sm leading-relaxed break-words whitespace-pre-wrap text-foreground">
+          {{ announcement?.content }}
+        </p>
+        <DialogFooter>
+          <Button @click="acknowledgeAnnouncement">我知道了</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>
 
 <style scoped>
-.chatStage {
-  display: grid;
-  height: calc(100dvh - 44px);
-  min-height: 0;
+.composerTextarea {
+  resize: none;
+  min-height: 24px;
   width: 100%;
-}
-
-.chatPanel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-}
-
-.messageViewport {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 26px;
-  background: var(--chat-surface);
-}
-
-.emptyState {
-  min-height: 100%;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 50px 24px;
-}
-
-.emptyState h2 {
-  margin: 0;
-  color: var(--text-title);
-  font-size: clamp(24px, 4vw, 36px);
-}
-
-.typingTips {
-  text-align: center;
-  padding: 14px;
-  font-size: 12px;
-}
-
-.messageRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 18px;
-  width: 100%;
-}
-
-.messageAvatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 16px;
-  object-fit: cover;
-  flex: 0 0 auto;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
-}
-
-.messageMeta {
-  min-width: 0;
-  width: min(100%, 860px);
-  display: grid;
-  gap: 8px;
-}
-
-.messageRole {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--text-soft);
-  text-transform: uppercase;
-}
-
-.messageBubble {
-  min-width: 0;
-  width: fit-content;
-  max-width: min(82%, 760px);
-  border-radius: 24px;
-  padding: 16px 18px;
-  border: 1px solid transparent;
-  box-shadow: var(--shadow-soft);
-}
-
-.messageRow p {
-  margin: 0;
-  white-space: pre-wrap;
+  flex: 1 1 auto;
+  background: transparent;
+  color: var(--foreground);
+  border: none;
+  padding: 0;
   font-size: 15px;
-  line-height: 1.75;
+  line-height: 1.7;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.messageFooter {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+@media (min-width: 961px) {
+  .composerTextarea {
+    min-height: 44px;
+    padding-top: 10px;
+  }
 }
 
-.messageFooter time {
-  display: block;
-  font-size: 12px;
-  color: var(--text-soft);
+.composerTextarea::selection {
+  background: rgba(63, 125, 78, 0.18);
 }
 
-.copyBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--text-soft);
-  cursor: pointer;
-  padding: 5px 10px;
-  font-size: 12px;
-  line-height: 1;
-  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+.composerTextarea:focus {
+  outline: none;
 }
 
-.copyBtn svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
+.chatUserBubble {
+  background: var(--chat-user-bg);
+  border: 1px solid var(--chat-user-border);
+  color: var(--chat-user-text);
 }
 
-.copyBtn:hover {
-  transform: translateY(-1px);
-  color: var(--text-main);
-  border-color: var(--line-strong);
+.chatUserBubble :deep(*) {
+  color: inherit;
 }
 
-.copyBtn.copied {
-  color: #3f7d4e;
-  border-color: rgba(63, 125, 78, 0.35);
-  background: rgba(63, 125, 78, 0.08);
-}
-
-.copyLabel {
-  font-weight: 600;
+.chatBotBubble {
+  background: var(--chat-bot-bg);
+  border: 1px solid var(--chat-bot-border);
+  color: var(--foreground);
 }
 
 .markdownBody {
   font-size: 15px;
   line-height: 1.72;
-  color: var(--text-main);
+  color: inherit;
   word-break: break-word;
-}
-
-.streamingPlainText {
-  display: block;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 15px;
-  line-height: 1.72;
-  color: var(--text-main);
 }
 
 .markdownBody :deep(p),
@@ -736,7 +711,7 @@ watch(lastMessageLength, async () => {
 .markdownBody :deep(th),
 .markdownBody :deep(td) {
   padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
   white-space: normal;
@@ -745,7 +720,7 @@ watch(lastMessageLength, async () => {
 }
 
 .markdownBody :deep(thead th) {
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(127, 145, 130, 0.1);
 }
 
 .markdownBody :deep(li + li) {
@@ -753,23 +728,23 @@ watch(lastMessageLength, async () => {
 }
 
 .markdownBody :deep(a) {
-  color: var(--accent-strong);
+  color: var(--primary);
   text-decoration: underline;
 }
 
 .markdownBody :deep(code) {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
-  background: rgba(17, 24, 39, 0.08);
+  background: rgba(127, 145, 130, 0.12);
   padding: 2px 6px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .markdownBody :deep(pre) {
   overflow-x: auto;
   padding: 14px;
-  border-radius: 18px;
-  background: rgba(17, 24, 39, 0.08);
+  border-radius: 12px;
+  background: rgba(127, 145, 130, 0.12);
 }
 
 .markdownBody :deep(pre code) {
@@ -780,487 +755,7 @@ watch(lastMessageLength, async () => {
 
 .markdownBody :deep(blockquote) {
   padding-left: 12px;
-  border-left: 3px solid rgba(95, 111, 133, 0.35);
-  color: var(--text-soft);
-}
-
-.isUser {
-  justify-content: flex-start;
-  flex-direction: row-reverse;
-}
-
-.isUser .messageMeta {
-  justify-items: end;
-}
-
-.isUser .messageBubble {
-  background: var(--chat-user-bg);
-  border-color: var(--chat-user-border);
-  color: var(--chat-user-text);
-}
-
-.isUser .messageBubble p,
-.isUser .messageBubble :deep(*) {
-  color: inherit;
-}
-
-.isUser .messageBubble::selection,
-.isUser .messageBubble p::selection,
-.isUser .messageBubble span::selection,
-.isUser .messageBubble strong::selection,
-.isUser .messageBubble em::selection,
-.isUser .messageBubble b::selection,
-.isUser .messageBubble i::selection,
-.isUser .messageBubble code::selection,
-.isUser .messageBubble a::selection,
-.isUser .messageBubble :deep(*)::selection {
-  background: var(--chat-user-selection-bg);
-  color: var(--chat-user-selection-text);
-}
-
-.isBot .messageBubble {
-  background: var(--chat-bot-bg);
-  border-color: var(--chat-bot-border);
-}
-
-.isBot .messageBubble::selection,
-.isBot .messageBubble p::selection,
-.isBot .messageBubble span::selection,
-.isBot .messageBubble strong::selection,
-.isBot .messageBubble em::selection,
-.isBot .messageBubble b::selection,
-.isBot .messageBubble i::selection,
-.isBot .messageBubble code::selection,
-.isBot .messageBubble a::selection,
-.isBot .messageBubble li::selection,
-.isBot .messageBubble blockquote::selection,
-.isBot .messageBubble th::selection,
-.isBot .messageBubble td::selection,
-.isBot .messageBubble :deep(*)::selection {
-  background: var(--chat-bot-selection-bg);
-  color: var(--chat-bot-selection-text);
-}
-
-.composerShell {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line-soft);
-  padding: 18px 20px 20px;
-  background: var(--surface-base);
-}
-
-.composerSurface {
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: 26px;
-  padding: 14px 14px 14px 18px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-[data-theme='dark'] .composerSurface {
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.composerSurface textarea {
-  resize: none;
-  min-height: 68px;
-  width: 100%;
-  flex: 1 1 auto;
-  background: transparent;
-  color: var(--text-main);
-  border: none;
-  padding: 0;
-  font-size: 15px;
-  line-height: 1.7;
-  overflow-y: auto;
-}
-
-.composerSurface textarea::selection {
-  background: var(--chat-input-selection-bg);
-  color: var(--chat-input-selection-text);
-}
-
-.composerSurface textarea:focus {
-  outline: none;
-}
-
-.composerActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.circleIconBtn {
-  width: 46px;
-  height: 46px;
-  border-radius: 18px;
-  border: 1px solid var(--line-strong);
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--text-main);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-}
-
-[data-theme='dark'] .circleIconBtn {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.circleIconBtn svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
-.circleIconBtn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(100, 111, 125, 0.3);
-  background: rgba(255, 255, 255, 0.82);
-}
-
-[data-theme='dark'] .circleIconBtn:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.sendIconBtn {
-  border-color: transparent;
-  background: linear-gradient(135deg, #5e6d81 0%, #4b596d 100%);
-  color: #f7f6f2;
-  box-shadow: 0 16px 26px rgba(86, 98, 116, 0.24);
-}
-
-.sendIconBtn:hover {
-  background: linear-gradient(135deg, #4f5d71 0%, #424f61 100%);
-}
-
-.prefIconBtn.active {
-  border-color: rgba(95, 111, 133, 0.45);
-  background: rgba(95, 111, 133, 0.14);
-}
-
-.stopIconBtn {
-  color: var(--danger);
-  background: rgba(198, 93, 75, 0.08);
-  border-color: rgba(198, 93, 75, 0.16);
-}
-
-.composerError {
-  margin: 10px 2px 0;
-  font-size: 12px;
-}
-
-.answerPrefsPanel {
-  display: grid;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border-radius: 18px;
-}
-
-.prefGroup {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.prefLabel {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-soft);
-  min-width: 60px;
-}
-
-.prefChips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.prefChip {
-  border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--text-soft);
-  font-size: 12px;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-.prefChip.active {
-  border-color: rgba(95, 111, 133, 0.45);
-  background: rgba(95, 111, 133, 0.14);
-  color: var(--text-main);
-  font-weight: 700;
-}
-
-.historyDrawerMask {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-bg);
-  display: flex;
-  justify-content: flex-end;
-  z-index: 90;
-}
-
-.historyDrawerPanel {
-  width: min(360px, 94vw);
-  height: 100dvh;
-  padding: 24px 20px;
-  border-radius: 0;
-  overflow: auto;
-}
-
-.historyDrawerHead {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.historyDrawerHead h3 {
-  margin: 12px 0 0;
-  font-size: 24px;
-  color: var(--text-title);
-}
-
-.historyActions {
-  display: flex;
-  gap: 8px;
-}
-
-.historyItem {
-  position: relative;
-  width: 100%;
-  border: 1px solid var(--line-soft);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.42);
-  margin-bottom: 10px;
-  padding: 15px 44px 15px 16px;
-  text-align: left;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-}
-
-.historyTitle {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.historyDeleteBtn {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-soft);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.historyDeleteBtn svg {
-  width: 15px;
-  height: 15px;
-  fill: currentColor;
-}
-
-.historyDeleteBtn:hover {
-  color: var(--danger, #c65d4b);
-  background: rgba(198, 93, 75, 0.08);
-  border-color: rgba(198, 93, 75, 0.2);
-}
-
-.historyEmpty {
-  text-align: center;
-  padding: 18px 0;
-  font-size: 13px;
-}
-
-.announcementMask {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-bg);
-  display: grid;
-  place-items: center;
-  z-index: 120;
-  padding: 20px;
-}
-
-.announcementPanel {
-  width: min(460px, 94vw);
-  padding: 26px 24px;
-  display: grid;
-  gap: 12px;
-  justify-items: start;
-}
-
-.announcementPanel h3 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--text-title);
-}
-
-.announcementContent {
-  margin: 0;
-  white-space: pre-wrap;
-  color: var(--text-main);
-  line-height: 1.7;
-  font-size: 14px;
-  max-height: 50vh;
-  overflow: auto;
-}
-
-.announcementAck {
-  justify-self: end;
-}
-
-[data-theme='dark'] .historyItem {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.historyItem:hover {
-  transform: translateY(-1px);
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-[data-theme='dark'] .historyItem:hover {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.historyItem small {
-  color: var(--text-soft);
-  flex: 0 0 auto;
-}
-
-.historyItem.active {
-  border-color: rgba(95, 111, 133, 0.3);
-  background: rgba(95, 111, 133, 0.12);
-  box-shadow: var(--shadow-soft);
-}
-
-@media (max-width: 960px) {
-  .chatStage {
-    height: calc(100dvh - 84px);
-  }
-
-  .chatPanel {
-    height: 100%;
-  }
-
-  .messageViewport {
-    padding: 18px 14px;
-  }
-
-  .messageRow {
-    gap: 10px;
-  }
-
-  .messageAvatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 14px;
-  }
-
-  .messageBubble {
-    max-width: 100%;
-    border-radius: 20px;
-    padding: 14px 15px;
-  }
-
-  .copyBtn {
-    padding: 7px 12px;
-    font-size: 13px;
-    border-radius: 14px;
-  }
-
-  .copyBtn svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  .composerSurface {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    border-radius: 22px;
-    padding: 10px 10px 10px 12px;
-  }
-
-  .composerShell {
-    padding: 10px 12px 12px;
-  }
-
-  .composerSurface textarea {
-    min-height: 22px;
-    max-height: 96px;
-    font-size: 14px;
-    line-height: 1.4;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .composerActions {
-    justify-content: flex-end;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .circleIconBtn {
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
-  }
-
-  .circleIconBtn svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  .historyIconBtn {
-    width: auto;
-    min-width: 34px;
-    padding: 0 10px;
-    gap: 4px;
-  }
-
-  .historyBtnLabel {
-    display: inline;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
-  }
-
-  .historyDrawerPanel {
-    width: 100%;
-    padding: 18px 14px;
-  }
-
-  .historyDrawerHead,
-  .historyActions {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  border-left: 3px solid rgba(63, 125, 78, 0.4);
+  color: var(--muted-foreground);
 }
 </style>

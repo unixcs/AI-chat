@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { checkSession, startSessionWatch, stopSessionWatch } from './utils/session-watch'
+import Toaster from '@/components/ui/sonner/Sonner.vue'
 
 const backendOffline = ref(false)
 let retryTimer = null
@@ -99,6 +100,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <Toaster />
   <div v-if="backendOffline" class="backendAlert">
     后端服务未启动（3001），当前仅显示页面外壳。请联系管理员。
   </div>
