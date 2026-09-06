@@ -166,39 +166,31 @@ func (s *Service) PersistReply(conversationID, content string) {
 }
 
 // BuildSystemPrompt layers the admin-managed base prompt (hot-reloaded from
-// SQLite; falls back to the startup config) with the user's answer-mode prefs.
-// Called once per chat request — a stream keeps the prompt it started with.
-// Preferences live at the session layer; the user's own message is never edited.
+// SQLite; falls back to the startup config) with the user's three answer
+// preference dimensions (length / style / format), each resolved from an
+// admin-editable prompt card. Called once per chat request — a stream keeps
+// the prompt it started with. Preferences live at the session layer; the
+// user's own message is never edited.
 func (s *Service) BuildSystemPrompt(user *model.User) string {
 	prompt := s.EffectiveSystemPrompt()
-	if extra := answerModeSuffix(user.AnswerLength, user.AnswerStyle); extra != "" {
-		if prompt == "" {
-			prompt = s.Cfg.SystemPromptDefault
-		}
-		prompt = prompt + "\n\n" + extra
+	if prompt == "" {
+		prompt = s.Cfg.SystemPromptDefault
 	}
+	prompt = s.appendPrefPrompt(prompt, "回答长度要求", "answerLength", user.AnswerLength)
+	prompt = s.appendPrefPrompt(prompt, "回答风格要求", "answerStyle", user.AnswerStyle)
+	prompt = s.appendPrefPrompt(prompt, "输出格式要求", "answerFormat", user.AnswerFormat)
 	return prompt
 }
 
-func answerModeSuffix(length, style string) string {
-	var parts []string
-	switch length {
-	case "concise":
-		parts = append(parts, "回答请尽量精简，每次回复控制在100字以内，只给最关键的结论。")
-	case "detailed":
-		parts = append(parts, "回答请详细展开，分点说明，给出充分的解释和细节。")
+// appendPrefPrompt appends one labeled preference segment. A missing or empty
+// card skips the segment entirely; a transient read failure is logged and
+// skipped rather than failing the chat.
+func (s *Service) appendPrefPrompt(prompt, label, dimension, value string) string {
+	content := s.GetPrefPromptContent(dimension, value)
+	if content == "" {
+		return prompt
 	}
-	switch style {
-	case "plain":
-		parts = append(parts, "请全程用通俗易懂的大白话回答，避免专业术语。")
-	case "professional":
-		parts = append(parts, "请使用专业、准确的表达方式回答。")
-	case "rigorous":
-		parts = append(parts, "回答请保持严谨，不确定的内容明确说明，不要臆断。")
-	case "encouraging":
-		parts = append(parts, "回答请语气温和、以鼓励为主。")
-	}
-	return strings.Join(parts, "\n")
+	return prompt + "\n\n" + label + "：" + content
 }
 
 // buildContextByRounds mirrors the Node backend: pair user/assistant messages

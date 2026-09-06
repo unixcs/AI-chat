@@ -62,6 +62,43 @@ func (a *API) handleAdminDeleteAnnouncement(_ *model.User, w http.ResponseWriter
 	ok(w, true)
 }
 
+// ---------- preference prompt cards (admin) ----------
+
+func (a *API) handleAdminListPrefPrompts(_ *model.User, w http.ResponseWriter, _ *http.Request) {
+	cards, serr := a.Svc.AdminListPrefPrompts()
+	if serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, cards)
+}
+
+func (a *API) handleAdminUpdatePrefPrompt(_ *model.User, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	dimension := r.PathValue("dimension")
+	value := r.PathValue("value")
+	if serr := a.Svc.AdminUpdatePrefPrompt(dimension, value, body.Content, "web-admin"); serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, true)
+}
+
+func (a *API) handleAdminResetPrefPrompt(_ *model.User, w http.ResponseWriter, r *http.Request) {
+	dimension := r.PathValue("dimension")
+	value := r.PathValue("value")
+	if serr := a.Svc.AdminResetPrefPrompt(dimension, value, "web-admin"); serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, true)
+}
+
 // ---------- settings ----------
 
 func (a *API) handleAdminGetSettings(_ *model.User, w http.ResponseWriter, _ *http.Request) {

@@ -76,8 +76,15 @@ func TestPromptUpdateAppliesToNextChat(t *testing.T) {
 	if st != 200 || len(events) != 2 || events[0] != "星" || events[1] != "[DONE]" {
 		t.Fatalf("stream: %d %v", st, events)
 	}
-	if got := cap.systemMessage(); got != "新提示词ABC" {
-		t.Fatalf("upstream must receive the updated prompt, got %q", got)
+	got := cap.systemMessage()
+	if !strings.HasPrefix(got, "新提示词ABC") {
+		t.Fatalf("upstream must receive the updated base prompt, got %q", got)
+	}
+	// 默认语义（Plan F5）：基础 Prompt 之后按序拼入三段偏好卡片
+	for _, seg := range []string{"回答长度要求：", "回答风格要求：", "输出格式要求："} {
+		if !strings.Contains(got, seg) {
+			t.Fatalf("system prompt missing pref segment %q, got %q", seg, got)
+		}
 	}
 }
 
@@ -145,7 +152,7 @@ func TestPromptFrozenForInFlightStream(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("stream did not finish")
 	}
-	if got := cap.systemMessage(); got != "第一版提示词" {
+	if got := cap.systemMessage(); !strings.HasPrefix(got, "第一版提示词") {
 		t.Fatalf("in-flight request must keep its starting prompt, got %q", got)
 	}
 }

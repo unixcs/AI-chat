@@ -90,14 +90,28 @@ func (a *API) handleChangePassword(user *model.User, w http.ResponseWriter, r *h
 }
 
 func (a *API) handlePreferences(user *model.User, w http.ResponseWriter, r *http.Request) {
+	// Pointer fields: absent JSON keys must not clear stored preferences —
+	// nil means "leave unchanged" (empty string behaves the same, per the
+	// long-standing nilIfEmpty semantics).
 	var body struct {
-		AnswerLength string `json:"answerLength"`
-		AnswerStyle  string `json:"answerStyle"`
+		AnswerLength *string `json:"answerLength"`
+		AnswerStyle  *string `json:"answerStyle"`
+		AnswerFormat *string `json:"answerFormat"`
 	}
 	if !decodeJSON(w, r, &body) {
 		return
 	}
-	if serr := a.Svc.UpdatePreferences(user.ID, body.AnswerLength, body.AnswerStyle); serr != nil {
+	length, style, format := "", "", ""
+	if body.AnswerLength != nil {
+		length = *body.AnswerLength
+	}
+	if body.AnswerStyle != nil {
+		style = *body.AnswerStyle
+	}
+	if body.AnswerFormat != nil {
+		format = *body.AnswerFormat
+	}
+	if serr := a.Svc.UpdatePreferences(user.ID, length, style, format); serr != nil {
 		fail(w, serr)
 		return
 	}

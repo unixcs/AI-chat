@@ -20,6 +20,7 @@ type User struct {
 	AdminUsername   string `json:"adminUsername"`
 	AnswerLength    string `json:"answerLength"`
 	AnswerStyle     string `json:"answerStyle"`
+	AnswerFormat    string `json:"answerFormat"`
 }
 
 type Role struct {
@@ -118,6 +119,7 @@ func (u *User) SafeUser() map[string]any {
 		"createdAt":      u.CreatedAt,
 		"answerLength":   nilOrNil(u.AnswerLength),
 		"answerStyle":    nilOrNil(u.AnswerStyle),
+		"answerFormat":   nilOrNil(u.AnswerFormat),
 	}
 }
 

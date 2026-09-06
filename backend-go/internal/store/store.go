@@ -44,6 +44,9 @@ func Open(path string) (*Store, error) {
 	if err := s.seed(); err != nil {
 		return nil, err
 	}
+	if err := s.SeedPrefPrompts(); err != nil {
+		return nil, fmt.Errorf("seed pref prompts: %w", err)
+	}
 	s.sweepOrphans()
 	return s, nil
 }
@@ -116,7 +119,7 @@ func (s *Store) addUsersColumns() error {
 	}
 	rows.Close()
 
-	for _, col := range []string{"answerLength", "answerStyle"} {
+	for _, col := range []string{"answerLength", "answerStyle", "answerFormat"} {
 		if !existing[col] {
 			if _, err := s.DB.Exec("ALTER TABLE users ADD COLUMN " + col + " TEXT"); err != nil {
 				return fmt.Errorf("add column %s: %w", col, err)

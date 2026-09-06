@@ -12,14 +12,14 @@ import (
 
 const userColumns = `id, phone, nickname, passwordHash, avatarUrl, status, role,
 	currentSessionId, sessionUpdatedAt, memberExpireAt, createdAt, lastLoginAt,
-	adminUsername, answerLength, answerStyle`
+	adminUsername, answerLength, answerStyle, answerFormat`
 
 func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	u := &model.User{}
-	var session, sessionUp, memberExpire, adminUser, answerLen, answerStyle sql.NullString
+	var session, sessionUp, memberExpire, adminUser, answerLen, answerStyle, answerFmt sql.NullString
 	err := row.Scan(&u.ID, &u.Phone, &u.Nickname, &u.PasswordHash, &u.AvatarURL, &u.Status,
 		&u.Role, &session, &sessionUp, &memberExpire, &u.CreatedAt, &u.LastLoginAt,
-		&adminUser, &answerLen, &answerStyle)
+		&adminUser, &answerLen, &answerStyle, &answerFmt)
 	if err != nil {
 		return nil, err
 	}
@@ -29,6 +29,7 @@ func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	u.AdminUsername = adminUser.String
 	u.AnswerLength = answerLen.String
 	u.AnswerStyle = answerStyle.String
+	u.AnswerFormat = answerFmt.String
 	return u, nil
 }
 
@@ -98,9 +99,28 @@ func (s *Store) UpdateUserPassword(id, hash string) error {
 	return err
 }
 
-func (s *Store) UpdateUserPreferences(id, length, style string) error {
-	_, err := s.DB.Exec(`UPDATE users SET answerLength = ?, answerStyle = ? WHERE id = ?`,
-		nilIfEmpty(length), nilIfEmpty(style), id)
+// UpdateUserPreferences writes only the fields provided (non-empty); absent
+// dimensions keep their stored value so partial PUTs cannot clear prefs.
+func (s *Store) UpdateUserPreferences(id, length, style, format string) error {
+	var sets []string
+	var args []any
+	if length != "" {
+		sets = append(sets, "answerLength = ?")
+		args = append(args, length)
+	}
+	if style != "" {
+		sets = append(sets, "answerStyle = ?")
+		args = append(args, style)
+	}
+	if format != "" {
+		sets = append(sets, "answerFormat = ?")
+		args = append(args, format)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	args = append(args, id)
+	_, err := s.DB.Exec(`UPDATE users SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...)
 	return err
 }
 

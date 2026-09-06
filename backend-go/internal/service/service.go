@@ -243,14 +243,17 @@ func (s *Service) ChangePassword(userID, oldPassword, newPassword string) *Servi
 	return nil
 }
 
-func (s *Service) UpdatePreferences(userID, length, style string) *ServiceError {
+func (s *Service) UpdatePreferences(userID, length, style, format string) *ServiceError {
 	if length != "" && !validAnswerLength(length) {
 		return fail(400, "回答长度参数错误")
 	}
 	if style != "" && !validAnswerStyle(style) {
 		return fail(400, "回答风格参数错误")
 	}
-	if err := s.Store.UpdateUserPreferences(userID, length, style); err != nil {
+	if format != "" && !validAnswerFormat(format) {
+		return fail(400, "输出格式参数错误")
+	}
+	if err := s.Store.UpdateUserPreferences(userID, length, style, format); err != nil {
 		return fail(500, "服务器繁忙")
 	}
 	return nil
@@ -267,6 +270,14 @@ func validAnswerLength(v string) bool {
 func validAnswerStyle(v string) bool {
 	switch v {
 	case "plain", "standard", "professional", "rigorous", "encouraging":
+		return true
+	}
+	return false
+}
+
+func validAnswerFormat(v string) bool {
+	switch v {
+	case "standard", "plain":
 		return true
 	}
 	return false

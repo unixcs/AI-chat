@@ -2,7 +2,6 @@ package service
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"ai-chat-backend/internal/config"
@@ -26,16 +25,6 @@ func TestBuildContextByRounds(t *testing.T) {
 	}
 	if joined != "user:q2 assistant:a2 user:q3 " {
 		t.Fatalf("context rounds wrong: %q", joined)
-	}
-}
-
-func TestAnswerModeSuffix(t *testing.T) {
-	if got := answerModeSuffix("", ""); got != "" {
-		t.Fatalf("empty prefs must yield empty suffix, got %q", got)
-	}
-	got := answerModeSuffix("concise", "plain")
-	if !strings.Contains(got, "精简") || !strings.Contains(got, "大白话") {
-		t.Fatalf("suffix missing keywords: %q", got)
 	}
 }
 
