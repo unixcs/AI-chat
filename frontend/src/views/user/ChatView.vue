@@ -30,6 +30,7 @@ const isNearBottom = ref(true)
 const showAnswerPrefs = ref(false)
 const answerLength = ref(authStore.profile?.answerLength || 'standard')
 const answerStyle = ref(authStore.profile?.answerStyle || 'standard')
+const answerFormat = ref(authStore.profile?.answerFormat || 'standard')
 const answerLengthOptions = [
   { value: 'concise', label: '精简' },
   { value: 'standard', label: '适中' },
@@ -41,6 +42,10 @@ const answerStyleOptions = [
   { value: 'professional', label: '专业' },
   { value: 'rigorous', label: '严谨' },
   { value: 'encouraging', label: '鼓励' }
+]
+const answerFormatOptions = [
+  { value: 'standard', label: '标准' },
+  { value: 'plain', label: '纯文字' }
 ]
 
 // 一次性公告
@@ -219,14 +224,20 @@ const setAnswerStyle = async (value) => {
   await persistPreferences()
 }
 
+const setAnswerFormat = async (value) => {
+  answerFormat.value = value
+  await persistPreferences()
+}
+
 const persistPreferences = async () => {
   try {
-    await updatePreferences({ answerLength: answerLength.value, answerStyle: answerStyle.value })
+    await updatePreferences({ answerLength: answerLength.value, answerStyle: answerStyle.value, answerFormat: answerFormat.value })
     if (authStore.profile) {
       authStore.setProfile({
         ...authStore.profile,
         answerLength: answerLength.value,
-        answerStyle: answerStyle.value
+        answerStyle: answerStyle.value,
+        answerFormat: answerFormat.value
       })
     }
   } catch (error) {
@@ -305,6 +316,8 @@ watch(() => authStore.profile, (p) => {
   if (p.answerStyle) {
     answerStyle.value = p.answerStyle
   }
+  // 旧账号 answerFormat 为 null → 回落 standard
+  answerFormat.value = p.answerFormat || 'standard'
 })
 
 // 输出跟随时持续滚到底部；用户上滑后不打扰
@@ -401,6 +414,18 @@ watch(lastMessageLength, async () => {
                 class="prefChip"
                 :class="{ active: answerStyle === opt.value }"
                 @click="setAnswerStyle(opt.value)"
+              >{{ opt.label }}</button>
+            </div>
+          </div>
+          <div class="prefGroup">
+            <span class="prefLabel">输出格式</span>
+            <div class="prefChips">
+              <button
+                v-for="opt in answerFormatOptions"
+                :key="opt.value"
+                class="prefChip"
+                :class="{ active: answerFormat === opt.value }"
+                @click="setAnswerFormat(opt.value)"
               >{{ opt.label }}</button>
             </div>
           </div>

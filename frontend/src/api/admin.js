@@ -139,3 +139,17 @@ export const getAdminSettings = () => {
 export const updateAdminSettings = (payload) => {
   return http.put('/admin/settings', payload, { headers: { needAdminAuth: true } })
 }
+
+// ---------- 偏好提示词卡片（长度/风格/格式 × 各选项） ----------
+
+export const getAdminPrefPrompts = () => {
+  return http.get('/admin/pref-prompts', { headers: { needAdminAuth: true } })
+}
+
+export const updateAdminPrefPrompt = (dimension, value, content) => {
+  return http.put(`/admin/pref-prompts/${dimension}/${value}`, { content }, { headers: { needAdminAuth: true } })
+}
+
+export const resetAdminPrefPrompt = (dimension, value) => {
+  return http.post(`/admin/pref-prompts/${dimension}/${value}/reset`, {}, { headers: { needAdminAuth: true } })
+}

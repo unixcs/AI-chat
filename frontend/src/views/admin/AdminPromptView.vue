@@ -5,7 +5,10 @@ import {
   getAdminPrompt,
   getAdminPromptRevisions,
   restoreAdminPrompt,
-  updateAdminPrompt
+  updateAdminPrompt,
+  getAdminPrefPrompts,
+  updateAdminPrefPrompt,
+  resetAdminPrefPrompt
 } from '../../api/admin'
 
 const info = ref({ content: '', version: null, updatedAt: null, operator: null, source: 'env' })
@@ -20,6 +23,78 @@ const dirty = computed(() => draft.value !== info.value.content)
 
 // 后端上限按字节（20000），中文每字 3 字节，字符数会低估占用
 const draftBytes = computed(() => new TextEncoder().encode(draft.value).length)
+
+// ---------- 偏好提示词卡片（长度/风格/格式 × 各选项） ----------
+const prefCards = ref([])
+const prefLoading = ref(false)
+const prefSavingKey = ref('')
+const prefNotice = ref('')
+const prefError = ref('')
+const prefDirty = ref({})
+
+const dimensionTitles = { answerLength: '回答长度', answerStyle: '回答风格', answerFormat: '输出格式' }
+const prefGroups = computed(() => {
+  const groups = []
+  for (const [dimension, title] of Object.entries(dimensionTitles)) {
+    groups.push({ dimension, title, cards: prefCards.value.filter((c) => c.dimension === dimension) })
+  }
+  return groups
+})
+
+const prefKey = (card) => `${card.dimension}.${card.value}`
+
+const loadPrefCards = async () => {
+  prefLoading.value = true
+  try {
+    const { data } = await getAdminPrefPrompts()
+    prefCards.value = (data.data || []).map((c) => ({ ...c, draft: c.content }))
+    prefDirty.value = {}
+  } catch (error) {
+    prefError.value = error.response?.data?.message || '偏好卡片加载失败'
+  } finally {
+    prefLoading.value = false
+  }
+}
+
+const markPrefDirty = (card) => {
+  prefDirty.value[prefKey(card)] = card.draft !== card.content
+}
+
+const savePrefCard = async (card) => {
+  prefSavingKey.value = prefKey(card)
+  prefNotice.value = ''
+  prefError.value = ''
+  try {
+    await updateAdminPrefPrompt(card.dimension, card.value, card.draft)
+    const rev = await getAdminPrefPrompts()
+    prefCards.value = (rev.data.data || []).map((c) => ({ ...c, draft: c.content }))
+    prefDirty.value = {}
+    prefNotice.value = `「${card.label}」卡片已保存，下一个新聊天立即生效`
+  } catch (error) {
+    prefError.value = error.response?.data?.message || '保存失败'
+  } finally {
+    prefSavingKey.value = ''
+  }
+}
+
+const resetPrefCard = async (card) => {
+  if (!window.confirm(`把「${card.label}」恢复为系统预置文案？`)) {
+    return
+  }
+  prefSavingKey.value = prefKey(card)
+  prefError.value = ''
+  try {
+    await resetAdminPrefPrompt(card.dimension, card.value)
+    const rev = await getAdminPrefPrompts()
+    prefCards.value = (rev.data.data || []).map((c) => ({ ...c, draft: c.content }))
+    prefDirty.value = {}
+    prefNotice.value = `「${card.label}」已恢复预置文案`
+  } catch (error) {
+    prefError.value = error.response?.data?.message || '恢复失败'
+  } finally {
+    prefSavingKey.value = ''
+  }
+}
 
 const load = async () => {
   loading.value = true
@@ -36,7 +111,10 @@ const load = async () => {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadPrefCards()
+})
 
 const save = async () => {
   errorText.value = ''
@@ -126,6 +204,40 @@ const preview = (content) => {
       <p v-if="loading" class="mutedText">加载中...</p>
     </div>
 
+    <h3 class="historyTitle">偏好提示词卡片</h3>
+    <p class="mutedText promptHint">
+      用户在聊天里选择「回答长度 / 回答风格 / 输出格式」后，实际发给 AI 的指令 =
+      上方基础内置 Prompt + 对应的三张卡片文案（按长度 → 风格 → 格式顺序拼接）。
+      卡片已预置默认文案，修改保存后立即生效，无需重启；进行中的请求保持开始时的版本。
+    </p>
+    <div v-if="prefLoading" class="mutedText">加载中...</div>
+    <div v-for="group in prefGroups" :key="group.dimension" class="prefCardGroup">
+      <h4 class="prefGroupTitle">{{ group.title }}</h4>
+      <div v-for="card in group.cards" :key="prefKey(card)" class="prefCard">
+        <div class="prefCardHead">
+          <span class="prefCardLabel">{{ card.label }}</span>
+          <span v-if="card.customized" class="tag tagActive">已自定义</span>
+          <span v-else class="tag tagOff">预置</span>
+          <span class="prefSpacer"></span>
+          <button
+            v-if="card.customized"
+            class="ghostBtn"
+            :disabled="prefSavingKey === prefKey(card)"
+            @click="resetPrefCard(card)"
+          >恢复预置</button>
+          <button
+            class="primaryBtn"
+            :disabled="!prefDirty[prefKey(card)] || prefSavingKey === prefKey(card)"
+            @click="savePrefCard(card)"
+          >{{ prefSavingKey === prefKey(card) ? '保存中...' : '保存' }}</button>
+        </div>
+        <textarea v-model="card.draft" rows="3" spellcheck="false" @input="markPrefDirty(card)"></textarea>
+        <small class="mutedText prefPresetLine">预置：{{ card.preset }}</small>
+      </div>
+    </div>
+    <p v-if="prefNotice" class="okText">{{ prefNotice }}</p>
+    <p v-if="prefError" class="dangerText">{{ prefError }}</p>
+
     <h3 class="historyTitle">版本历史（最近 50 条）</h3>
     <div v-if="revisions.length === 0" class="mutedText emptyHistory">
       还没有保存过版本——当前展示的是环境/出厂配置的内容。
@@ -142,6 +254,63 @@ const preview = (content) => {
     </div>
   </section>
 </template>
+
+.prefCardGroup {
+  margin-top: 14px;
+}
+
+.prefGroupTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.prefCard {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.prefCard textarea {
+  width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  font-family: Consolas, 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-main);
+  resize: vertical;
+}
+
+.prefCardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prefCardLabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.prefSpacer {
+  flex: 1;
+}
+
+.prefPresetLine {
+  line-height: 1.5;
+}
+
+[data-theme='dark'] .prefCard,
+[data-theme='dark'] .prefCard textarea {
+  background: rgba(255, 255, 255, 0.04);
+}
 
 <style scoped>
 .panel {
