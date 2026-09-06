@@ -201,3 +201,13 @@
 
 体积门禁（gzip）：JS 201.54KB（基线 128.62，+72.92 ≤ +120 ✓）；CSS 10.70KB（基线 9.95，+0.75 ≤ +30 ✓）。
 冒烟工装备注：vite preview 的 /api 代理对离线后端会挂起到 axios 15s 超时（生产 nginx 立即 502），非产品缺陷。
+
+## §8 R14 用户反馈三项修复（2026-09-06 晚，commit 8b419cf）
+
+| # | 用户反馈 | 处置 | 实现 |
+|---|---|---|---|
+| 1 | 复制按钮「试了很多遍都不能用，不折腾」 | **整体移除**（时间行只留时间） | ChatView 删 copyMessage/copiedMessageId/按钮；`utils/clipboard.js` + 19 项 `clipboard.test.js` 一并下线（无消费方）；回归锁改为「界面上不得再出现'复制'」 |
+| 2 | 选中文字对比度：浅色用户气泡选中完全不可见；浅色 AI 气泡不够深；深色用户气泡同样看不清；深色 AI 气泡整体过亮 | 根因两层：①气泡 `::selection` 规则此前根本不存在（全局 0.22 绿压绿底白字=隐形）；②LEGACY `--chat-*` 变量**无 `.dark` 覆盖**，AI 气泡深色下沿用白底 rgba(255,255,255,.76) | style.css：更新 `--chat-*-selection-*` 取值（用户气泡反白高亮+深绿字；AI 气泡浅色=深绿高亮+浅字）+ 新增 `.dark` 覆盖块（用户气泡绿系加深一档、AI 气泡改暗面 rgba(32,39,34,.88)、选中高亮浅绿+深字）；ChatView scoped 补两气泡自身+`*::selection` 规则 |
+| 3 | 「保存资料」的"资料更新成功"漏显在卡密充值卡；点「立即兑换」的"兑换码不存在"又漏显在资料卡——提示多余且位置错误 | 提示状态两卡共用导致串位 | ProfileView 拆 `profileError/profileNotice` 与 `redeemError/redeemNotice` 四个独立状态，各卡只显自己的反馈（toast 行为不变） |
+
+**验证**：node --test 58/58（复制 19 项随工具下线；新增选中对比度锁 + 提示隔离锁）；vite build 绿（JS gzip 201.35KB / CSS 10.79KB，门禁内）；部署两测试服仅重建 frontend 容器（backend 未动、数据卷零触碰），资产 hash `index-VKb7o8zh.js` 双端确认；生产 8181 未触碰。

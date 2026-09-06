@@ -46,12 +46,13 @@
 - 层级：背景层（body 雾感渐变）→ 卡面层（Card）→ 浮层（Dialog/Sheet/Popover/Select，z-50，overlay 遮罩 + backdrop-blur-[2px]）。
 - 动效统一 150–200ms ease（`duration-150/200` + `tw-animate-css` 的 data-[state] 动效类）；**禁止 >300ms**。
 - 焦点环：2px `--ring`（`focus-visible:ring-2 focus-visible:ring-ring`），键盘可达。
+- 文字选中（`::selection`）：彩色底内容卡（如聊天气泡）必须显式声明 `::selection` 高亮，禁止依赖全局默认——高亮与底色须明度反转（R14 教训：绿底白字气泡上全局绿高亮=隐形）；取值集中在 `style.css` 的 `chat-*-selection-*` 变量并保证 `.dark` 覆盖。
 - 浮层关闭钮右上角，`sr-only` 中文标签「关闭」。
 
 ## 5. 移动优先
 
 - 断点：`sm` 640 / `md` 960（`--breakpoint-md` 已覆盖为 960；960 是本应用桌面/移动的判定线，与 ChatView `window.innerWidth > 960` 一致）。
-- 触控目标 ≥44px：主按钮 `h-11`（Button size default / icon），移动端消息复制按钮 `min-h-11`；密集表格内允许 `size="sm"`（h-9）但仅限桌面。
+- 触控目标 ≥44px：主按钮 `h-11`（Button size default / icon）；密集表格内允许 `size="sm"`（h-9）但仅限桌面。
 - 底部 composer 贴 safe-area：`pb-[max(12px,env(safe-area-inset-bottom))]`。
 - 管理端表格 <960px 折叠为卡片列表（`hidden md:block` 表格 + `md:hidden` 卡片）。
 - 移动导航：用户端与管理端均用 Sheet（side left），桌面常驻侧栏。

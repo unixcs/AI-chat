@@ -171,3 +171,9 @@ AI_MODE=gateway  AI_PROVIDERS_JSON='[{"name":"cpa","baseURL":"...","apiKey":"...
 
 - 部署过程：Docker Hub 不可达（TLS 超时）→ 经 daocloud 镜像源补齐 alpine/golang/node/nginx 基础镜像后 `deploy-yun1-test.sh` 一次通过；红线全程未触碰（yun 生产零接触、二节点 8181/3001 Up 22h 无扰动、镜像不在 yun1 构建）。
 - 线上真机验收（Chromium CDP → http://yun1:8189，insecure 生产等价）：注册→登录→新 UI 渲染→三维度偏好弹层→纯文字持久化→会员门槛文案逐字复现→0 意外页面错误→管理端壳渲染，9/9 PASS；health 双实例绿。
+
+## 13. R14 用户反馈轮（2026-09-06 晚，commit 8b419cf）
+
+纯前端迭代（backend-go 零变更）。三项：①复制按钮移除——R12a/R13 两轮修复后真机仍不可用，用户决定下线（clipboard.js 与其 19 项测试一并删除，回归锁反转为「界面不得再出现'复制'」）；②气泡文字选中对比度——根因：气泡 `::selection` 规则缺失 + LEGACY `--chat-*` 变量无 `.dark` 覆盖致 AI 气泡深色下沿用白底过亮，两处补齐（取值 `style.css` chat-*-selection-*，含 .dark 块）；③个人资料/卡密充值提示拆独立状态杜绝串位（ProfileView 四态分离）。
+
+部署：两测试服（yun 8189 / yun1 8189）仅重建 `ai-chat-go-frontend` 容器（backend 容器未动、数据卷零触碰）；生产 8181 全程未触碰。测试 58/58；体积门禁 JS gzip 201.35KB / CSS gzip 10.79KB。
