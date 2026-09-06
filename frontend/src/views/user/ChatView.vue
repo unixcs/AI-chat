@@ -5,7 +5,6 @@ import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
 import { consumeFreshChatFlag, hasDraftSessionFlag, shouldStartFreshOnChatEntry } from '../../utils/chat-entry'
 import { renderMarkdownToSafeHtml } from '../../utils/markdown'
-import { copyText } from '../../utils/clipboard'
 import { updatePreferences, getCurrentAnnouncement, ackAnnouncement } from '../../api/user-extras'
 import Button from '@/components/ui/button/Button.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -30,7 +29,7 @@ import DialogContent from '@/components/ui/dialog/DialogContent.vue'
 import DialogHeader from '@/components/ui/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
 import DialogFooter from '@/components/ui/dialog/DialogFooter.vue'
-import { Sparkles, Copy, Check, SlidersHorizontal, History, Square, Send, Plus, Trash2 } from 'lucide-vue-next'
+import { Sparkles, SlidersHorizontal, History, Square, Send, Plus, Trash2 } from 'lucide-vue-next'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -42,10 +41,6 @@ const composerTextareaRef = ref(null)
 
 // 桌面端侧栏 vs 移动端抽屉
 const isDesktop = ref(window.innerWidth > 960)
-
-// 复制反馈：记录刚复制成功的消息 id，1.5s 后还原
-const copiedMessageId = ref(null)
-let copiedTimer = null
 
 // 智能滚动：只有用户本来就在底部时才跟随输出
 const isNearBottom = ref(true)
@@ -236,19 +231,6 @@ const onComposerKeydown = (event) => {
   submitMessage()
 }
 
-const copyMessage = async (msg) => {
-  const ok = await copyText(msg.content)
-  if (!ok) {
-    errorText.value = '复制失败，请长按文本手动复制'
-    return
-  }
-  copiedMessageId.value = msg.id
-  clearTimeout(copiedTimer)
-  copiedTimer = setTimeout(() => {
-    copiedMessageId.value = null
-  }, 1500)
-}
-
 const setAnswerLength = async (value) => {
   answerLength.value = value
   await persistPreferences()
@@ -323,7 +305,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  clearTimeout(copiedTimer)
 })
 
 watch(
@@ -406,19 +387,8 @@ watch(lastMessageLength, async () => {
               </div>
               <p v-else class="m-0 break-words whitespace-pre-wrap">{{ msg.content }}</p>
             </div>
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center">
               <time class="text-xs text-faint">{{ formatTime(msg.createdAt) }}</time>
-              <button
-                class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors duration-150"
-                :class="copiedMessageId === msg.id
-                  ? 'border-primary/35 bg-accent text-primary'
-                  : 'border-border bg-card/70 text-muted-foreground hover:text-foreground'"
-                :aria-label="copiedMessageId === msg.id ? '已复制' : '复制消息'"
-              >
-                <Check v-if="copiedMessageId === msg.id" class="size-3.5" />
-                <Copy v-else class="size-3.5" />
-                <span>{{ copiedMessageId === msg.id ? '已复制' : '复制' }}</span>
-              </button>
             </div>
           </div>
         </article>
@@ -673,6 +643,20 @@ watch(lastMessageLength, async () => {
   background: var(--chat-bot-bg);
   border: 1px solid var(--chat-bot-border);
   color: var(--foreground);
+}
+
+/* 选中对比度（R14）：绿底白字的用户气泡反白高亮，AI 气泡用加深/提亮的高亮色，
+   两套取值随浅/深模式经 chat-*-selection-* 变量切换。 */
+.chatUserBubble::selection,
+.chatUserBubble *::selection {
+  background: var(--chat-user-selection-bg);
+  color: var(--chat-user-selection-text);
+}
+
+.chatBotBubble::selection,
+.chatBotBubble *::selection {
+  background: var(--chat-bot-selection-bg);
+  color: var(--chat-bot-selection-text);
 }
 
 .markdownBody {

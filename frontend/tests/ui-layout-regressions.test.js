@@ -55,10 +55,34 @@ test('chat composer respects iOS safe area at the bottom', () => {
   assert.match(vue, /env\(safe-area-inset-bottom\)/)
 })
 
-test('copy button keeps a >=44px touch target on messages', () => {
+test('message bubbles keep selection contrast via role-scoped highlight variables', () => {
   const vue = readProjectFile('src/views/user/ChatView.vue')
+  const css = readProjectFile('src/style.css')
 
-  assert.match(vue, /min-h-11[^"]*'?\s*cursor-pointer/)
+  // 两类气泡的 ::selection 规则存在（此前缺失导致绿底白字选中不可见）
+  assert.match(vue, /\.chatUserBubble::selection,/)
+  assert.match(vue, /\.chatUserBubble \*::selection \{/)
+  assert.match(vue, /\.chatBotBubble::selection,/)
+  assert.match(vue, /\.chatBotBubble \*::selection \{/)
+  // 取值走 chat-*-selection-* 变量
+  assert.match(vue, /background: var\(--chat-user-selection-bg\)/)
+  assert.match(vue, /background: var\(--chat-bot-selection-bg\)/)
+  // 浅色取值 + .dark 覆盖（此前 .dark 无 chat-* 覆盖，AI 气泡深色下过亮）
+  assert.match(css, /--chat-user-selection-bg: #f8fafc/)
+  assert.match(css, /--chat-bot-selection-bg: #2f6340/)
+  assert.match(css, /--chat-user-bg: linear-gradient\(135deg, #356a42/)
+  assert.match(css, /--chat-bot-bg: rgba\(32, 39, 34, 0\.88\)/)
+})
+
+test('profile and redeem forms keep independent notice states (no cross-card leaks)', () => {
+  const vue = readProjectFile('src/views/user/ProfileView.vue')
+
+  // 共用的 noticeText/errorText 已拆为每卡独立状态
+  assert.match(vue, /profileError/)
+  assert.match(vue, /profileNotice/)
+  assert.match(vue, /redeemError/)
+  assert.match(vue, /redeemNotice/)
+  assert.doesNotMatch(vue, /noticeText|errorText/)
 })
 
 test('mobile navigation uses left Sheet in both shells', () => {

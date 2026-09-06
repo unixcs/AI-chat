@@ -14,8 +14,11 @@ import Badge from '@/components/ui/badge/Badge.vue'
 import { toast } from 'vue-sonner'
 
 const authStore = useAuthStore()
-const noticeText = ref('')
-const errorText = ref('')
+// 两张卡片各自独立提示：共用状态会导致“资料更新成功”漏进兑换卡（反之亦然）
+const profileError = ref('')
+const profileNotice = ref('')
+const redeemError = ref('')
+const redeemNotice = ref('')
 
 // 与 ChatView 偏好弹层保持同一套标签映射（Plan §2.6：Profile 同步展示）
 const prefLengthLabels = { concise: '精简', standard: '适中', detailed: '详细' }
@@ -40,25 +43,25 @@ const redeemForm = reactive({
 })
 
 const saveProfile = async () => {
-  errorText.value = ''
-  noticeText.value = ''
+  profileError.value = ''
+  profileNotice.value = ''
   try {
     await updateProfile(profileForm)
     const { data } = await getUserProfile()
     authStore.setProfile(data.data)
-    noticeText.value = '资料更新成功'
+    profileNotice.value = '资料更新成功'
     toast.success('资料更新成功')
   } catch (error) {
-    errorText.value = error.response?.data?.message || '资料更新失败'
-    toast.error(errorText.value)
+    profileError.value = error.response?.data?.message || '资料更新失败'
+    toast.error(profileError.value)
   }
 }
 
 const submitRedeem = async () => {
-  errorText.value = ''
-  noticeText.value = ''
+  redeemError.value = ''
+  redeemNotice.value = ''
   if (!redeemForm.code) {
-    errorText.value = '请输入兑换码'
+    redeemError.value = '请输入兑换码'
     return
   }
 
@@ -66,11 +69,11 @@ const submitRedeem = async () => {
     const { data } = await redeemCode(redeemForm.code)
     authStore.setProfile(data.data.profile)
     redeemForm.code = ''
-    noticeText.value = `兑换成功，会员到期：${dayjs(data.data.profile.memberExpireAt).format('YYYY-MM-DD HH:mm')}`
+    redeemNotice.value = `兑换成功，会员到期：${dayjs(data.data.profile.memberExpireAt).format('YYYY-MM-DD HH:mm')}`
     toast.success('兑换成功')
   } catch (error) {
-    errorText.value = error.response?.data?.message || '兑换失败'
-    toast.error(errorText.value)
+    redeemError.value = error.response?.data?.message || '兑换失败'
+    toast.error(redeemError.value)
   }
 }
 </script>
@@ -92,8 +95,8 @@ const submitRedeem = async () => {
             <Input id="profile-avatar" v-model="profileForm.avatarUrl" placeholder="请输入头像 URL" />
           </div>
 
-          <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
-          <p v-if="noticeText" class="text-sm text-primary">{{ noticeText }}</p>
+          <Alert v-if="profileError" variant="destructive">{{ profileError }}</Alert>
+          <p v-if="profileNotice" class="text-sm text-primary">{{ profileNotice }}</p>
 
           <Button type="submit">保存资料</Button>
         </form>
@@ -125,8 +128,8 @@ const submitRedeem = async () => {
             <Input id="redeem-code" v-model="redeemForm.code" placeholder="请输入兑换码" />
           </div>
 
-          <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
-          <p v-if="noticeText" class="text-sm text-primary">{{ noticeText }}</p>
+          <Alert v-if="redeemError" variant="destructive">{{ redeemError }}</Alert>
+          <p v-if="redeemNotice" class="text-sm text-primary">{{ redeemNotice }}</p>
 
           <Button type="submit">立即兑换</Button>
         </form>

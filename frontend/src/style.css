@@ -186,12 +186,12 @@
   --chat-user-bg: linear-gradient(135deg, #3f7d4e 0%, #4c8f5d 100%);
   --chat-user-border: rgba(53, 106, 66, 0.45);
   --chat-user-text: #f8fafc;
-  --chat-user-selection-bg: #e9f2ea;
-  --chat-user-selection-text: #1c3524;
+  --chat-user-selection-bg: #f8fafc;
+  --chat-user-selection-text: #1c4227;
   --chat-bot-bg: rgba(255, 255, 255, 0.76);
   --chat-bot-border: rgba(109, 120, 134, 0.14);
-  --chat-bot-selection-bg: #d9ead9;
-  --chat-bot-selection-text: #1c3524;
+  --chat-bot-selection-bg: #2f6340;
+  --chat-bot-selection-text: #f0f6f0;
   --chat-input-selection-bg: rgba(63, 125, 78, 0.18);
   --chat-input-selection-text: #1f2630;
   --overlay-bg: rgba(20, 30, 22, 0.28);
@@ -202,6 +202,20 @@
   --shadow-soft: 0 12px 30px rgba(92, 82, 70, 0.08);
   --shadow-float: 0 30px 80px rgba(78, 67, 56, 0.16);
   --font-main: -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', sans-serif;
+}
+
+/* ===== 深色模式聊天气泡覆盖：此前无 .dark 值，AI 气泡沿用白底导致深色下过亮。
+   用户气泡保持绿系加深一档；选中高亮按气泡角色反转配色保证对比度（R14）。 ===== */
+.dark {
+  --chat-user-bg: linear-gradient(135deg, #356a42 0%, #417c50 100%);
+  --chat-user-border: rgba(20, 42, 27, 0.6);
+  --chat-user-text: #f2f6f2;
+  --chat-user-selection-bg: #f2f7f3;
+  --chat-user-selection-text: #16301f;
+  --chat-bot-bg: rgba(32, 39, 34, 0.88);
+  --chat-bot-border: rgba(232, 236, 232, 0.08);
+  --chat-bot-selection-bg: #9ed3ab;
+  --chat-bot-selection-text: #10241a;
 }
 
 /* ===== LEGACY COMPAT 结束 ===== */

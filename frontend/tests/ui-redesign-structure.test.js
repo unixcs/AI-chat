@@ -150,9 +150,8 @@ test('chat view keeps behavioral anchors and adopts the new overlay system', () 
   assert.match(vue, /answerStyleOptions/)
   assert.match(vue, /answerFormatOptions/)
   assert.match(vue, /persistPreferences/)
-  // 复制（Part A 锚点）
-  assert.match(vue, /import \{ copyText \} from '\.\.\/\.\.\/utils\/clipboard'/)
-  assert.match(vue, /copiedMessageId/)
+  // 复制功能已按用户决定整体移除（clipboard util 与其测试一并下线）
+  assert.doesNotMatch(vue, /copyText|copiedMessageId/)
   // 智能滚动（逻辑不变）
   assert.match(vue, /messageIsNearBottom/)
   assert.match(vue, /isNearBottom/)

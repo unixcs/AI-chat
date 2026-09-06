@@ -44,12 +44,11 @@ test('chat page keeps empty-state, placeholder and streaming copy', () => {
   assert.doesNotMatch(vue, /在安静而清晰的空间里继续对话/)
 })
 
-test('chat copy button and history/announcement copy stay intact', () => {
+test('chat history/announcement copy stays intact and the copy button stays removed', () => {
   const vue = readProjectFile('src/views/user/ChatView.vue')
 
-  // 复制按钮两态
-  assert.match(vue, /\?\s*'已复制'\s*:\s*'复制'/)
-  assert.match(vue, /'已复制'\s*:\s*'复制消息'/)
+  // 复制按钮已按用户决定移除（真机多轮修复仍不可用），界面上不得再出现“复制”
+  assert.doesNotMatch(vue, /复制/)
   // 历史与公告
   assert.match(vue, /历史对话/)
   assert.match(vue, /我知道了/)
@@ -63,7 +62,6 @@ test('script-owned user-facing error copy is untouched', () => {
 
   assert.match(vue, /最多只能占卜 1,000 字以内哦~/)
   assert.match(vue, /会员过期，请续费后使用。/)
-  assert.match(vue, /复制失败，请长按文本手动复制/)
 })
 
 test('admin prompt page keeps hint copy explaining the assembly chain', () => {
