@@ -177,3 +177,12 @@ AI_MODE=gateway  AI_PROVIDERS_JSON='[{"name":"cpa","baseURL":"...","apiKey":"...
 纯前端迭代（backend-go 零变更）。三项：①复制按钮移除——R12a/R13 两轮修复后真机仍不可用，用户决定下线（clipboard.js 与其 19 项测试一并删除，回归锁反转为「界面不得再出现'复制'」）；②气泡文字选中对比度——根因：气泡 `::selection` 规则缺失 + LEGACY `--chat-*` 变量无 `.dark` 覆盖致 AI 气泡深色下沿用白底过亮，两处补齐（取值 `style.css` chat-*-selection-*，含 .dark 块）；③个人资料/卡密充值提示拆独立状态杜绝串位（ProfileView 四态分离）。
 
 部署：两测试服（yun 8189 / yun1 8189）仅重建 `ai-chat-go-frontend` 容器（backend 容器未动、数据卷零触碰）；生产 8181 全程未触碰。测试 58/58；体积门禁 JS gzip 201.35KB / CSS gzip 10.79KB。
+
+## 14. 生产 8181 升级实录（2026-09-06 21:12 切换完成）
+
+方案流程：子代理只读勘察规划 → 主会话过审 → 备份+回滚锚点 → 副本预演对账 → override 换镜像切换 → 全项验收。要点：
+
+- **数据零丢失**：`sqlite3 .backup` 一致性备份（/home/admin/backup-pre-go-20260906-210541，integrity ok）；副本预演六业务表逐行一致（32|24612|154863|62|40|2），迁移零行变更；切换后终对账吻合（增量全部来自真实用户持续使用 + 1 个一次性冒烟账号）。
+- **用户无感**：停机 ≈45 秒（低峰值换容器）；**Node 旧 token 经 Go 验证直接有效**（session-check 实测 + 真实用户流量即证），免重登；bcrypt 密码兼容；切换后 15 分钟 10 次流式请求零错误。
+- 切换形态：compose override 文件（只覆 image）+ `--no-build`；镜像 WSL 构建 `prod-29bb956` save/load，yun 全程零构建（内存红线）；Prompt.md sha256 三方一致，AI 行为无漂移。
+- 回滚锚点：镜像 tag `rollback-node-20260906` ×2 + 备份库 + git master；观察期 1–2 周。
