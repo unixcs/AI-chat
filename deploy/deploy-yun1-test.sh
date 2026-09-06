@@ -8,7 +8,7 @@
 set -euo pipefail
 
 HOST="${SSH_TARGET:-yun1}"
-REMOTE_DIR=/opt/ai-chat-go-test
+REMOTE_DIR="${REMOTE_DIR:-/opt/ai-chat-go-test}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "==> [1/5] 本地构建镜像（WSL，不在 yun1 构建）"
