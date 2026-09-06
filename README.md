@@ -1,548 +1,152 @@
-# Demo AI Chat Platform
+# AI Chat
 
-一个前后端分离的 AI 对话与会员管理系统，包含用户端与管理后台。用户通过手机号注册登录，使用兑换码开通会员后可调用 DeepSeek 进行流式对话；管理员可管理用户、兑换码、兑换记录与完整会话内容。
+前后端分离的 AI 对话与会员管理平台：用户手机号注册登录，兑换码开通会员后进行流式 AI 对话；管理后台覆盖用户、会员、兑换码、公告、提示词等完整运营面。
+
+2026-09 完成两轮大改并已上生产：
+
+- **后端 Node.js → Go 重构**：API 契约 100% 兼容（前端零改动可跑），JWT 互相签发/校验兼容，SQLite 数据库同表名增量迁移（老库直接接管，用户无感升级）。
+- **全站 UI 重建**：Tailwind CSS v4 + shadcn-vue 风格组件（reka-ui，组件源码进仓库），浅色/深色双主题，移动端自适应。
 
 ## 1. 功能概览
 
 ### 用户端
-- 首页/登录/注册（手机号唯一，不需要短信验证码）
-- AI 对话（SSE 流式输出）
-- 历史会话与消息查看
-- 个人中心（昵称/头像）
-- 修改密码
-- 兑换码激活会员
+- 手机号注册/登录（JWT；同账号重复登录会使旧会话失效）
+- AI 流式对话（SSE）+ Markdown 渲染，历史会话管理
+- **三维度回答偏好**：发送按钮旁「调节」面板，长度 / 风格 / 输出格式 三个维度自由组合（默认「适中 + 标准」），对新对话即时生效；偏好对应的提示词卡片由管理员在后台维护、改完热生效
+- 站内公告：进站一次性弹窗，管理员修改公告内容后自动对全员重推
+- 个人资料、修改密码、卡密充值（兑换码激活会员）
+- 对话文字支持长按选择复制（选中高亮对比度已按浅/深色分别调校）
 
 ### 会员规则
-- 兑换后：`memberExpireAt = 激活时间 + 兑换码时长(月)`
-- 默认兑换码时长：1 个月
-- 非会员或会员过期：禁止发送对话消息
+- 兑换码激活：`memberExpireAt = 激活时间 + 兑换码时长`
+- 非会员或会员过期禁止发言，返回固定文案「会员过期，请续费后使用」
 
-### 管理端
-- 管理员登录
+### 管理端（`/admin`，默认账号见 §4）
 - 控制台统计
-- 用户管理（查询、启停用、重置密码、编辑）
-- 角色管理、菜单管理
-- 会员管理
-- 兑换码管理（生成、作废、筛选、分页、导出）
-- 兑换记录管理
-- 会话管理（可查看完整消息内容）
+- 用户管理（查询、启停用、重置密码、会员时长调整）、角色管理、菜单管理
+- 兑换码管理（批量生成、作废、筛选、导出）、兑换记录
+- 会话审计（可查看完整消息内容）
+- 公告管理、提示词版本管理（恢复 = 旧内容生成新版本，历史可追溯）
+- AI 状态页
 
-## 2. 技术栈与部署技术
+### AI 接入（Go Router，双模式）
+- `AI_MODE=official`：仅 DeepSeek 官方 API
+- `AI_MODE=gateway`：OpenAI 兼容免费模型池（`AI_PROVIDERS_JSON` 有序列表）→ 自动故障切换 → 官方兜底
+- 切换策略：免费池单模型首字 2s 超时即换 → 池内累计预算 6s 后直接官方兜底；故障模型健康冷却 30s 起指数封顶 10min，到期自动复探测
+- 可选 Telegram 管理机器人（`TG_BOT_TOKEN`，不配则不启动）
 
-### 前端
-- Vue 3
-- Vue Router 4
-- Pinia
-- Vite 8
-- Axios
-- Day.js
-- Sass
+## 2. 技术栈
 
-### 后端
-- Node.js + Express 5
-- JWT（`jsonwebtoken`）
-- 密码加密（`bcryptjs`）
-- CORS
-- dotenv
-- Day.js
-- SQLite（使用 Node 内置 `node:sqlite` 的 `DatabaseSync`）
-
-### AI 模型接入
-- DeepSeek Chat API
-- SSE 流式响应
-- 上下文拼接（最近多轮）
-
-### 部署与运维（推荐）
-- Linux 云服务器（Ubuntu 22.04/24.04）
-- Nginx（前端静态资源 + API 反向代理）
-- systemd（守护后端进程）
-- Docker / Docker Compose（容器化部署方案）
+| 层 | 技术 |
+|---|---|
+| 后端 | Go 1.27（标准库 `net/http`）、`modernc.org/sqlite`（纯 Go SQLite，无 CGO）、`golang-jwt/v5`、bcrypt |
+| 前端 | Vue 3 + Vite、Tailwind CSS v4（CSS-first token）、reka-ui、Pinia、markdown-it + DOMPurify、lucide-vue-next |
+| 存储 | SQLite 单文件（WAL）；schema 增量迁移幂等，老版本数据库可直接接管 |
+| 部署 | Docker Compose；前端容器 Nginx 承载静态资源并反代 `/api` |
 
 ## 3. 项目结构
 
 ```text
-ai-chat/
-├─ frontend/                 # Vue 前端
-│  ├─ src/
-│  ├─ package.json
-│  ├─ Dockerfile
-│  ├─ nginx.default.conf
-│  └─ vite.config.js
-├─ backend/                  # Express 后端
-│  ├─ server.js
-│  ├─ db.js
-│  ├─ auth.js
-│  ├─ data.sqlite            # 默认开发 SQLite 数据文件（未设置 SQLITE_PATH 时使用）
-│  ├─ data.json              # 本地开发可选的 JSON 种子数据
-│  ├─ Dockerfile
-│  ├─ .dockerignore
-│  └─ package.json
-├─ docker-compose.yml
-└─ README.md
+AI-chat/
+├─ backend-go/                  # Go 后端（现行版本）
+│  ├─ cmd/server/               # 入口（默认端口 3001）
+│  ├─ internal/
+│  │  ├─ api/                   # HTTP 路由与 handler（含 SSE）
+│  │  ├─ ai/                    # Provider/Router（免费池 + 官方兜底）
+│  │  ├─ auth/                  # JWT
+│  │  ├─ bot/                   # Telegram 管理 Bot（可选）
+│  │  ├─ config/                # 环境变量配置
+│  │  ├─ model/ service/ store/ # 领域模型 / 业务 / SQLite 存储
+│  ├─ prompts/Prompt.md         # 内置基础提示词
+│  └─ Dockerfile                # golang:1.27-alpine 多阶段 → alpine:3.20
+├─ frontend/                    # Vue3 前端
+│  ├─ src/components/ui/        # shadcn-vue 风格组件（源码入仓库）
+│  ├─ tests/                    # node --test 回归 + 暗色双机制校验脚本
+│  └─ Dockerfile                # node:22-alpine 构建 → nginx:alpine
+├─ deploy/
+│  ├─ deploy-yun1-test.sh       # 测试服一键部署/更新（本地构建镜像 → ssh load → --no-build 拉起）
+│  └─ docker-compose.yun1-test.yml
+├─ docs/                        # 现行文档（见 §7 文档索引）
+├─ docker-compose.yml           # ⚠️ Node 老版遗留示例（build ./backend），勿用于 Go 版
+└─ backend/                     # ⚠️ Node 老版后端，2026-09-06 已退役，仅存档（完整历史见 commit 4b7bfa9）
 ```
 
-## 4. 运行环境要求
+## 4. 本地开发
 
-- Node.js：`>= 22`（重要：项目使用 `node:sqlite`）
-- npm：`>= 10`（或 pnpm `>= 9`）
-- Git
-- 可选：Docker `>= 24`，Docker Compose `>= 2.20`
-
-## 5. 数据与初始化策略
-
-- 应用优先读取环境变量 `SQLITE_PATH`
-- 未设置 `SQLITE_PATH` 时，默认回退到 `backend/data.sqlite`
-- 生产和 Docker 部署建议显式指定独立数据目录，例如 `/var/lib/ai-chat/data.sqlite` 或 `/app/data/data.sqlite`
-- 空库首次启动时，默认自动创建最小系统数据：管理员、角色、后台菜单
-- 默认管理员账号：`admin`
-- 默认管理员密码：`admin123`
-- 首次启动不会自动创建演示普通用户、演示兑换码、演示会话消息
-- `ALLOW_JSON_SEED=true` 仅用于本地开发，允许在空库首次启动时导入 `backend/data.json`
-- 生产和 Docker 部署请保持 `ALLOW_JSON_SEED` 未设置
-
-## 6. 本地开发启动
-
-### 6.1 克隆项目
+### 后端（Go）
 
 ```bash
-git clone https://github.com/unixcs/AI-chat
-cd AI-chat
+cd backend-go
+cp .env.example .env      # 至少填 DEEPSEEK_API_KEY、JWT_SECRET
+go run ./cmd/server       # 默认 http://localhost:3001
 ```
 
-### 6.2 配置后端环境变量
+- 健康检查：`GET /api/health`
+- 空库首次启动自动创建最小系统数据（管理员、角色、菜单），不创建演示用户/兑换码/消息
+- 默认管理员：`admin / admin123` —— **生产环境首次登录后立即修改**
 
-在 `backend/.env` 写入：
-
-```env
-SQLITE_PATH=
-ALLOW_JSON_SEED=
-DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-
-# 可选：并发与队列
-MODEL_CONCURRENCY=6
-MODEL_QUEUE_MAX=50
-```
-
-说明：
-- `SQLITE_PATH` 留空即可使用默认本地数据库 `backend/data.sqlite`
-- 如需从 `backend/data.json` 初始化本地空库，可设置 `ALLOW_JSON_SEED=true`
-- 已有数据库存在时，不会重复执行初始化导入
-
-### 6.3 启动后端
+### 前端（Vue3）
 
 ```bash
-cd backend
+cd frontend
 npm install
-npm run dev
+npm run dev               # http://localhost:5173，/api 代理到 localhost:3001
 ```
 
-后端默认地址：`http://localhost:3001`
-
-### 6.4 启动前端
+## 5. 测试
 
 ```bash
-cd ../frontend
-npm install
-npm run dev
+cd backend-go && go test ./...
+cd frontend && node --test tests/*.test.js
+cd frontend && python3 tests/verify-dark-mode.py   # 暗色双机制（data-theme + html.dark）校验
 ```
 
-前端默认地址：`http://localhost:5173`
+## 6. Docker 部署
 
-说明：前端开发代理已配置 `/api -> http://localhost:3001`（见 `frontend/vite.config.js`）。
-
-## 7. 默认账号与隐私说明
-
-### 用户端
-- 默认测试账号信息已隐藏（隐私保护）
-- 如需测试，请在部署后由管理员在后台创建测试账号，或联系项目维护者获取临时账号
-
-### 管理端
-- 地址：`/admin/login`
-- 默认初始化管理员账号：`admin`
-- 默认初始化管理员密码：`admin123`
-- 生产环境请首次登录后立即修改管理员密码
-
-## 8. GitHub 拉取与更新流程
-
-### 8.1 首次拉取
+生产做法（小内存服务器也适用）：**镜像在本地/CI 构建，传输到服务器 `docker load`，服务器上只 `--no-build` 拉起**——不要在小内存机器上原地 build。
 
 ```bash
-git clone https://github.com/unixcs/AI-chat
-cd AI-chat
+# 本地构建
+docker build -t ai-chat-go-backend:latest  ./backend-go
+docker build -t ai-chat-go-frontend:latest ./frontend
+
+# 传输（示例）
+docker save ai-chat-go-backend:latest | gzip -1 | ssh HOST 'gunzip | docker load'
+docker save ai-chat-go-frontend:latest | gzip -1 | ssh HOST 'gunzip | docker load'
 ```
 
-### 8.2 后续更新
+服务器上准备目录与 compose（可直接参考 `deploy/docker-compose.yun1-test.yml`，改端口/项目名即可）：
 
-```bash
-git pull origin main
-```
+- backend：`env_file` 挂 `.env`，数据卷 `<数据目录>:/app/data`，环境变量 `SQLITE_PATH=/app/data/data.sqlite`
+- frontend：80 端口；容器内 Nginx 已配好 `/api/ → http://backend:3001/api/`，**SSE 必需项已带**（`proxy_buffering off` + 长超时），服务名必须叫 `backend`
+- 拉起：`docker compose -p ai-chat up -d --no-build`
 
-如果你的默认分支不是 `main`，请改成对应分支名（如 `master`）。
+后端环境变量全量说明见 `backend-go/.env.example`（每键带注释）：端口/库路径、`AI_MODE`、DeepSeek 四件套、Router 调参（首字超时/预算/并发队列）、`AI_PROVIDERS_JSON` 免费池、`JWT_SECRET`、TG Bot 三键。**密钥只进服务器上的 `.env`（chmod 600），绝不进 git。**
 
-## 9. 云服务器部署（非 Docker，推荐生产）
+### 数据备份与升级
 
-以下示例基于 Ubuntu 22.04。
+- 备份：`sqlite3 <库文件> ".backup '<目标文件>'"`（WAL 感知的一致性备份，比直接 cp 可靠）
+- 升级 SOP（无缝、保数据）：`sqlite3 .backup` 一致性备份 → 备份副本挂一次性容器预演迁移并逐行对账 → compose override 文件只覆 `image` 字段 → `up -d --no-build` 切换 → 终对账。完整步骤见 `docs/HANDOVER-20260906-GO-REWRITE.md`（2026-09-06 已在生产 8181 实盘执行：停机约 45 秒、旧 token 免重登、数据零丢失）
 
-### 9.1 安装基础环境
+## 7. 文档索引
 
-```bash
-sudo apt update
-sudo apt install -y git curl nginx
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v
-npm -v
-```
+| 文档 | 内容 |
+|---|---|
+| `docs/HANDOVER-20260906-GO-REWRITE.md` | 交接总入口：环境/版本锚点、部署与生产升级 SOP、升级实录 |
+| `docs/GO-REWRITE-REPORT.md` | Go 重构全记录：架构、十轮对抗审查、验收数据 |
+| `docs/PREF-UI-REDESIGN-PLAN.md` | 三维度回答偏好设计 + 全站 UI 重建方案与验收 |
+| `docs/BRAND-GUIDELINES.md` | 前端设计规范：token、组件消费约定、语气 |
+| `docs/GO-REFACTOR-PLAN.md` / `docs/GO-CHAT-PLAN-ORIGINAL.md` | 重构计划（修订版/原始版） |
+| `docs/PROMPT-BOT-PLAN.md` | Telegram 提示词 Bot 设计 |
 
-### 9.2 拉取项目
+## 8. 安全建议（生产必做）
 
-```bash
-cd /var/www
-sudo git clone https://github.com/unixcs/AI-chat ai-chat
-sudo chown -R $USER:$USER /var/www/ai-chat
-cd /var/www/ai-chat
-```
+- 修改默认管理员密码；`JWT_SECRET` 必须换成强随机值
+- `.env` 权限 600，不入库、不进镜像构建上下文
+- 反代层上 HTTPS；安全组/防火墙仅放行 80/443
+- 定期执行 §6 的 SQLite 备份并异地存放
+- 日志轮转与监控告警
 
-### 9.3 部署后端
-
-```bash
-cd /var/www/ai-chat/backend
-npm install --production
-```
-
-创建环境变量文件：
-
-```bash
-cat > /var/www/ai-chat/backend/.env << 'EOF'
-SQLITE_PATH=/var/lib/ai-chat/data.sqlite
-ALLOW_JSON_SEED=
-DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-MODEL_CONCURRENCY=6
-MODEL_QUEUE_MAX=50
-EOF
-```
-
-首次切换到独立数据目录前，请先创建目录并迁移原数据库文件：
-
-```bash
-sudo mkdir -p /var/lib/ai-chat
-sudo cp /var/www/ai-chat/backend/data.sqlite* /var/lib/ai-chat/
-sudo chown -R $USER:$USER /var/lib/ai-chat
-```
-
-如果是新服务器首次部署且数据目录为空，后端会自动初始化最小系统数据：
-- 管理员账号：`admin`
-- 管理员密码：`admin123`
-- 角色与后台菜单
-- 不自动创建演示普通用户、演示兑换码、演示会话消息
-- 生产环境请首次登录后立即修改管理员密码
-
-创建 systemd 服务 `/etc/systemd/system/ai-chat-backend.service`：
-
-```ini
-[Unit]
-Description=AI Chat Backend Service
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/var/www/ai-chat/backend
-ExecStart=/usr/bin/node /var/www/ai-chat/backend/server.js
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动并设置开机自启：
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ai-chat-backend
-sudo systemctl start ai-chat-backend
-sudo systemctl status ai-chat-backend
-```
-
-### 9.4 部署前端静态资源
-
-```bash
-cd /var/www/ai-chat/frontend
-npm install
-npm run build
-```
-
-构建产物在：`/var/www/ai-chat/frontend/dist`
-
-### 9.5 配置 Nginx
-
-创建 `/etc/nginx/sites-available/ai-chat.conf`：
-
-```nginx
-server {
-  listen 80;
-  server_name _; # 改成你的域名，例如 ai.example.com
-
-  root /var/www/ai-chat/frontend/dist;
-  index index.html;
-
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
-
-  location /api/ {
-    proxy_pass http://127.0.0.1:3001/api/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_buffering off;
-    proxy_cache off;
-  }
-}
-```
-
-启用站点并重载：
-
-```bash
-sudo ln -s /etc/nginx/sites-available/ai-chat.conf /etc/nginx/sites-enabled/ai-chat.conf
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### 9.6 放行防火墙（如启用了 UFW）
-
-```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
-sudo ufw status
-```
-
-## 10. Docker 部署
-
-下面给出完整容器化方案（前端 + 后端 + Nginx 反代）。
-
-### 10.1 服务器安装 Docker
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable docker
-sudo systemctl start docker
-docker --version
-docker compose version
-```
-
-### 10.2 克隆项目并进入目录
-
-```bash
-git clone https://github.com/unixcs/AI-chat
-cd AI-chat
-```
-
-### 10.3 创建后端环境变量
-
-说明：`backend/.env` 仅用于容器运行时注入环境变量；`.gitignore` 不会阻止它进入 Docker build context，因此需要配合 `backend/.dockerignore` 一起使用。
-
-```bash
-cat > backend/.env << 'EOF'
-SQLITE_PATH=/app/data/data.sqlite
-ALLOW_JSON_SEED=
-DEEPSEEK_API_KEY=你的_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-MODEL_CONCURRENCY=6
-MODEL_QUEUE_MAX=50
-EOF
-```
-
-### 10.4 使用仓库内置 Docker 文件
-
-#### `backend/Dockerfile`
-
-```dockerfile
-FROM node:22-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --production
-
-COPY server.js ./
-COPY db.js ./
-COPY auth.js ./
-COPY admin-member-expire.js ./
-COPY prompts ./prompts
-
-EXPOSE 3001
-CMD ["node", "server.js"]
-```
-
-#### `backend/.dockerignore`
-
-```dockerignore
-.env
-node_modules
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-*.log
-backend-dev.log
-```
-
-#### `frontend/Dockerfile`
-
-```dockerfile
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.default.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-#### `frontend/.dockerignore`
-
-```dockerignore
-node_modules
-dist
-*.log
-```
-
-#### `frontend/nginx.default.conf`
-
-```nginx
-server {
-  listen 80;
-  server_name _;
-
-  root /usr/share/nginx/html;
-  index index.html;
-
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
-
-  location /api/ {
-    proxy_pass http://backend:3001/api/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_buffering off;
-    proxy_cache off;
-  }
-}
-```
-
-#### 根目录 `docker-compose.yml`
-
-```yaml
-version: "3.9"
-services:
-  backend:
-    build:
-      context: ./backend
-    container_name: ai-chat-backend
-    restart: always
-    env_file:
-      - ./backend/.env
-    ports:
-      - "3001:3001"
-    environment:
-      SQLITE_PATH: /app/data/data.sqlite
-    volumes:
-      - /srv/ai-chat/data:/app/data
-
-  frontend:
-    build:
-      context: ./frontend
-    container_name: ai-chat-frontend
-    restart: always
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
-```
-
-### 10.5 一键构建启动
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-说明：
-- 容器内固定使用 `SQLITE_PATH=/app/data/data.sqlite`
-- 宿主机只需要挂载数据目录 `/srv/ai-chat/data`
-- 目录挂载会同时保留 `data.sqlite`、`data.sqlite-wal`、`data.sqlite-shm`
-- `.gitignore` 不会影响 Docker 构建上下文，敏感文件和运行时数据依赖 `.dockerignore` 排除
-- Docker 部署默认不依赖 `data.json`，首次空库启动只创建最小系统数据
-- `ALLOW_JSON_SEED` 仅用于本地开发，不作为 Docker 首次部署的常规初始化方式
-- 首次登录后请立即修改默认管理员密码
-
-如果你之前已经在项目目录内使用过 `backend/data.sqlite`，迁移到 Docker 数据目录时可执行：
-
-```bash
-sudo mkdir -p /srv/ai-chat/data
-cp backend/data.sqlite* /srv/ai-chat/data/
-docker compose up -d --build
-```
-
-### 10.6 查看日志
-
-```bash
-docker compose logs -f backend
-docker compose logs -f frontend
-```
-
-### 10.7 停止与重启
-
-```bash
-docker compose down
-docker compose up -d
-```
-
-## 11. 常见问题排查
-
-- 后端启动失败：确认 Node 版本是否 `>= 22`（`node -v`）
-- AI 无响应：检查 `DEEPSEEK_API_KEY` 是否有效、余额是否充足
-- 前端显示后端未启动：确认 `3001` 端口可访问，或检查 Nginx `/api` 反代
-- Docker 下 SSE 不流式：确认反代关闭缓冲（`proxy_buffering off`）
-- 首次部署后无法登录管理员：确认当前数据目录是否为空，以及是否已使用默认管理员 `admin / admin123` 完成首登
-- 数据保护：请定期备份当前 `SQLITE_PATH` 指向的数据库文件及其同目录的 `-wal`、`-shm` 文件
-
-## 12. 安全建议（生产必做）
-
-- 修改默认管理员账号密码
-- 使用 HTTPS（Nginx + Certbot）
-- 对 `.env` 做最小权限控制，不入库
-- 使用云厂商安全组仅开放 `80/443`
-- 增加日志轮转与监控告警
-
-## 13. License
+## 9. License
 
 仅供学习与原型演示使用。

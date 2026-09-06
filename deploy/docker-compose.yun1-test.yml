@@ -9,7 +9,7 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: ./backend-go
     image: ai-chat-go-backend:latest
     container_name: ai-chat-go-backend
     restart: always
