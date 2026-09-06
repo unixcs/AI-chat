@@ -23,12 +23,41 @@
 | 环境 | 位置 | 版本 | 状态 |
 |---|---|---|---|
 | **yun 生产** | yun 服务器 `8181`(前端)/`3001`(后端)，`/opt/AI-chat`，数据 `/srv/ai-chat/data` | **Node.js 老版（未动！）** | Up 25h+，红线保护 |
-| **yun 测试服**（新） | yun 服务器 `8189`(前端)/`3002`(后端)，`/home/admin/ai-chat-go-test`，数据全新 | **Go 新版 `7be284d`** | 已验收，对外可访问 http://121.41.192.80:8189 |
+| **yun 测试服** | yun 服务器 `8189`(前端)/`3002`(后端)，`/home/admin/ai-chat-go-test`，数据=**老 8189 测试库已迁入**（见 §3 演练记录） | **Go 新版 `7be284d`** | 已验收，对外可访问 http://121.41.192.80:8189 |
 | **yun1 测试位** | yun1 `8189`/`3002`，`/opt/ai-chat-go-test` | **Go 新版 `7be284d`** | 已验收 |
 
 说明：yun 生产从未被本次任何操作触碰（容器未重建、数据/env 未改）；yun 测试服的 `DEEPSEEK_API_KEY` 等从生产 `.env` **只读提取**写入新目录（生产文件本身零改动，chmod 600）。
 
-## 3. 后续把新版升级到 yun 生产 8181 的操作要点
+## 3. 无感升级 SOP（2026-09-06 已在 yun 8189 实盘演练验证）
+
+**原则（用户要求，硬性）**：生产升级的前提是保证全部业务数据，做到用户无感——数据零丢失、行数对账一致、用户登录态不掉（JWT_SECRET 相同则浏览器 token 直接有效，连重新登录都不需要）。
+
+**迁移机制（已验证）**：Go 版 schema 与 Node 版同表名兼容，迁移为纯增量（`CREATE TABLE IF NOT EXISTS` 新表 + `ADD COLUMN` 新列，幂等）；旧库 7 张表原样保留，不删列不改行。
+
+**2026-09-06 实盘演练记录（yun 8189：老 Node 测试库 → Go 后端）**：
+
+| 表 | 迁移前 | 迁移后 | 结果 |
+|---|---|---|---|
+| users | 32 | 32 | 一致 |
+| conversations | 24308 | 24308 | 一致 |
+| messages | 152216 | 152216 | 一致 |
+| redeemCodes / redeemRecords | 62 / 40 | 62 / 40 | 一致 |
+| roles / menus | 2 / 8 | 2 / 8 | 一致 |
+| settings / announcements / promptRevisions / announcementReads | 无表 | 10 / 0 / 0 / 0 | 新增（预置卡片等） |
+| users.answerFormat 列 | 无 | 已加，旧用户 NULL | 前端 standard 兜底 |
+
+演练同时确认：老用户账号密码可直接登录（bcrypt 双向兼容），历史会话/消息在新 UI 正常可见。
+
+**生产 8181 升级标准流程（照此执行，不得跳步）**：
+1. **备份**：`sqlite3 /srv/ai-chat/data/data.sqlite ".backup '/home/admin/backup-pre-upgrade.sqlite'"`（在线一致备份），并 `docker tag` 记录当前 Node 镜像 ID；
+2. **副本预演**：把备份副本挂到测试容器（或 yun 8189 同款流程）跑一次迁移 + 行数对账 + 抽样登录，**对账不过不碰生产**；
+3. **切换**（低峰）：停 `ai-chat-backend` → 换 `ai-chat-go-backend:latest` 镜像 → 起容器（Go 自动增量迁移，秒级）→ 前端镜像同理（前端无状态可随时换）；
+4. **升级后对账**：§3 同款行数比对必须与切换前一致；`ops/health-yun.sh yun` 全绿；
+5. **回滚**：换回记录的 Node 镜像 tag + 恢复备份库（升级产生的增量列/表对 Node 版无害，Node 忽略未知表）。
+
+**已规避的教训**：2026-09-06 部署 yun 8189 时误按"废弃环境重建"新建空库，未提前确认老环境有数据（数据未丢，原目录 `/home/admin/ai-chat-test/` 完好保留含每日备份）。任何"新建/重建"动作前必须先查证旧数据存在性并向用户确认处置方式。
+
+## 4. 后续把新版升级到 yun 生产 8181 的操作要点（修订版）
 
 前置阅读：`DEPLOYMENT_WORKFLOW.md`（本仓库）+ Tencent 机 `/mnt/vps/yun/.claude/skills/ai-chat-safe-deploy/`（生产安全部署 skill，含 01-05 脚本）。
 
