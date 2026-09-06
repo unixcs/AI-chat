@@ -548,7 +548,9 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 			return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型服务异常: " + err.Error()}
 		}
 
-		line = strings.TrimSpace(line)
+		// R10 发现：BOM 若贴在行首（"\ufeffdata:…"），必须先剥 BOM 再判
+		// "data:" 前缀，否则整行被当噪声跳过、丢首 token。
+		line = strings.TrimSpace(strings.TrimPrefix(line, "\ufeff"))
 		if line == "" || !strings.HasPrefix(line, "data:") {
 			continue
 		}
@@ -556,7 +558,6 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		if debugAI() {
 			fmt.Printf("[ai-debug] entry=%s line=%q\n", entry.Name, line)
 		}
-		data = strings.TrimPrefix(data, "\ufeff") // hostile upstream BOM
 		if data == "[DONE]" {
 			break
 		}
