@@ -41,6 +41,23 @@ func (s *Store) UpdateAnnouncement(a *model.Announcement) error {
 	return nil
 }
 
+// UpdateAnnouncementResetReads atomically updates an announcement and clears
+// its per-user read records so all users get re-notified.
+func (s *Store) UpdateAnnouncementResetReads(a *model.Announcement) error {
+	return s.inTx(func(tx *sql.Tx) error {
+		res, err := tx.Exec(`UPDATE announcements SET title = ?, content = ?, active = ?, updatedAt = ? WHERE id = ?`,
+			a.Title, a.Content, boolInt(a.Active), Now(), a.ID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return ErrNotFound
+		}
+		_, err = tx.Exec(`DELETE FROM announcementReads WHERE announcementId = ?`, a.ID)
+		return err
+	})
+}
+
 func (s *Store) DeleteAnnouncement(id string) error {
 	return s.inTx(func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM announcementReads WHERE announcementId = ?`, id); err != nil {

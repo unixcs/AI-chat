@@ -1,10 +1,13 @@
 package service
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"ai-chat-backend/internal/config"
 	"ai-chat-backend/internal/model"
+	"ai-chat-backend/internal/store"
 )
 
 func TestBuildContextByRounds(t *testing.T) {
@@ -37,10 +40,18 @@ func TestAnswerModeSuffix(t *testing.T) {
 }
 
 func TestNormalizeMemberExpireAt(t *testing.T) {
-	// Node/dayjs on the UTC containers parses naive strings as UTC; keep that.
+	// Naive values are admin wall-clock (+8): the admin UI's datetime-local
+	// submits browser-local (+8) time and redisplays stored values the same
+	// way, so +8 keeps the pick→display round trip WYSIWYG. Zoned values
+	// honor their own offset.
 	cases := map[string]string{
-		"2027-01-01 00:00": "2027-01-01T00:00:00.000Z",
-		"":                 "",
+		"2027-01-01T00:00:00":        "2026-12-31T16:00:00.000Z",
+		"2027-01-01T00:00":           "2026-12-31T16:00:00.000Z",
+		"2027-01-01 08:30:00":        "2027-01-01T00:30:00.000Z",
+		"2027-01-01":                 "2026-12-31T16:00:00.000Z",
+		"2027-01-01T00:00:00Z":       "2027-01-01T00:00:00.000Z",
+		"2027-01-01T08:00:00+08:00":  "2027-01-01T00:00:00.000Z",
+		"":                           "",
 	}
 	for in, want := range cases {
 		got, err := NormalizeMemberExpireAt(in)
@@ -55,6 +66,57 @@ func TestNormalizeMemberExpireAt(t *testing.T) {
 		t.Fatal("garbage must error")
 	}
 }
+
+func TestAdminUpdateAnnouncementResetSemantics(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	svc := New(&config.Config{}, st, nil)
+	if _, serr := svc.AdminCreateAnnouncement("维护通知", "今晚维护", true, "test"); serr != nil {
+		t.Fatalf("create: %+v", serr)
+	}
+	list, serr := svc.AdminListAnnouncements()
+	if serr != nil || len(list) != 1 {
+		t.Fatalf("list: %+v", serr)
+	}
+	id := list[0]["id"].(string)
+	if err := st.AckAnnouncement(id, "u1"); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+
+	// active-only toggle: users who already read it are NOT re-pinged
+	if serr := svc.AdminUpdateAnnouncement(id, "", "", boolPtr(false), "test"); serr != nil {
+		t.Fatalf("active toggle: %+v", serr)
+	}
+	if _, err := st.CurrentUnreadAnnouncement("u1"); err != store.ErrNotFound {
+		t.Fatalf("active-only toggle must keep read state, got %v", err)
+	}
+
+	// content change (re-activating): every user gets re-notified
+	if serr := svc.AdminUpdateAnnouncement(id, "", "改期到明晚维护", boolPtr(true), "test"); serr != nil {
+		t.Fatalf("content update: %+v", serr)
+	}
+	got, err := st.CurrentUnreadAnnouncement("u1")
+	if err != nil || got.ID != id || got.Content != "改期到明晚维护" {
+		t.Fatalf("content change must re-notify: %v %+v", err, got)
+	}
+	// no-op content resave: stays read after ack
+	if serr := svc.AdminUpdateAnnouncement(id, "维护通知", "改期到明晚维护", nil, "test"); serr != nil {
+		t.Fatalf("resave: %+v", serr)
+	}
+	if err := st.AckAnnouncement(id, "u1"); err != nil {
+		t.Fatalf("re-ack: %v", err)
+	}
+	if serr := svc.AdminUpdateAnnouncement(id, "维护通知", "改期到明晚维护", nil, "test"); serr != nil {
+		t.Fatalf("no-op resave: %+v", serr)
+	}
+	if _, err := st.CurrentUnreadAnnouncement("u1"); err != store.ErrNotFound {
+		t.Fatalf("no-op resave must keep read state, got %v", err)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
 
 func TestMembershipValid(t *testing.T) {
 	future := model.User{MemberExpireAt: "2099-01-01T00:00:00.000Z"}

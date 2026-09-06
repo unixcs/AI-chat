@@ -316,43 +316,7 @@ watch(lastMessageLength, async () => {
 </script>
 
 <template>
-  <section class="chatStage" :class="{ withSidebar: isDesktop }">
-    <aside v-if="isDesktop" class="historySidebar card panelShell">
-      <div class="historyDrawerHead">
-        <div>
-          <span class="sectionLabel">History</span>
-          <h3>历史对话</h3>
-        </div>
-        <button class="primaryBtn newChatBtn" @click="addConversation">新建</button>
-      </div>
-      <div class="historyList">
-        <div
-          v-for="item in chatStore.list"
-          :key="item.id"
-          class="historyItem"
-          :class="{ active: chatStore.activeConversationId === item.id }"
-          role="button"
-          tabindex="0"
-          @click="selectConversation(item.id)"
-          @keydown.enter="selectConversation(item.id)"
-        >
-          <span class="historyTitle">{{ item.title }}</span>
-          <small>{{ formatTime(item.updatedAt) }}</small>
-          <button
-            class="historyDeleteBtn"
-            title="删除对话"
-            aria-label="删除对话"
-            @click.stop="removeConversation(item.id)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9zm4 3v7h2v-7h-2zm4 0v7h2v-7h-2z" />
-            </svg>
-          </button>
-        </div>
-        <p v-if="chatStore.list.length === 0" class="mutedText historyEmpty">还没有对话记录</p>
-      </div>
-    </aside>
-
+  <section class="chatStage">
     <section class="chatPanel card panelShell">
       <div ref="messageListRef" class="messageViewport" @scroll="onMessageScroll">
         <div v-if="activeMessages.length === 0" class="emptyState">
@@ -562,26 +526,6 @@ watch(lastMessageLength, async () => {
   height: calc(100dvh - 44px);
   min-height: 0;
   width: 100%;
-}
-
-.chatStage.withSidebar {
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 16px;
-}
-
-.historySidebar {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  padding: 24px 18px;
-}
-
-.historyList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin-top: 6px;
 }
 
 .chatPanel {
@@ -1164,10 +1108,6 @@ watch(lastMessageLength, async () => {
 
 .announcementAck {
   justify-self: end;
-}
-
-.newChatBtn {
-  flex: 0 0 auto;
 }
 
 [data-theme='dark'] .historyItem {

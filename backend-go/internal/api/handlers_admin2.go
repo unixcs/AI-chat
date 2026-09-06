@@ -47,7 +47,7 @@ func (a *API) handleAdminUpdateAnnouncement(_ *model.User, w http.ResponseWriter
 	if !decodeJSON(w, r, &body) {
 		return
 	}
-	if serr := a.Svc.AdminUpdateAnnouncement(r.PathValue("id"), body.Title, body.Content, body.Active); serr != nil {
+	if serr := a.Svc.AdminUpdateAnnouncement(r.PathValue("id"), body.Title, body.Content, body.Active, "web-admin"); serr != nil {
 		fail(w, serr)
 		return
 	}

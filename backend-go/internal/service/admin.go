@@ -195,22 +195,35 @@ func (s *Service) AdminResetPassword(id, newPassword, operator string) *ServiceE
 	return nil
 }
 
-// NormalizeMemberExpireAt parses admin-provided dates like dayjs does:
-// ISO strings, "YYYY-MM-DD HH:mm", or "YYYY-MM-DD". Empty → null (clears).
+// NormalizeMemberExpireAt parses admin-provided dates: zoned ISO strings honor
+// their own offset; naive values are admin wall-clock in Asia/Shanghai (+8) —
+// the admin UI's datetime-local input submits browser-local (+8) wall time and
+// redisplays stored values the same way, so +8 keeps the round trip WYSIWYG.
+// Empty → null (clears).
 func NormalizeMemberExpireAt(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", nil
 	}
-	layouts := []string{
-		"2006-01-02T15:04:05.000Z07:00",
-		"2006-01-02T15:04:05Z07:00",
+	cst := time.FixedZone("CST", 8*3600)
+	naiveLayouts := []string{
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
 		"2006-01-02",
 	}
-	for _, l := range layouts {
+	zonedLayouts := []string{
+		"2006-01-02T15:04:05.000Z07:00",
+		"2006-01-02T15:04:05Z07:00",
+	}
+	for _, l := range zonedLayouts {
 		if t, err := time.Parse(l, value); err == nil {
+			return t.UTC().Format("2006-01-02T15:04:05.000Z07:00"), nil
+		}
+	}
+	for _, l := range naiveLayouts {
+		if t, err := time.ParseInLocation(l, value, cst); err == nil {
 			return t.UTC().Format("2006-01-02T15:04:05.000Z07:00"), nil
 		}
 	}
@@ -407,23 +420,34 @@ func (s *Service) AdminCreateAnnouncement(title, content string, active bool, op
 	return a, nil
 }
 
-func (s *Service) AdminUpdateAnnouncement(id, title, string_content string, active *bool) *ServiceError {
+// AdminUpdateAnnouncement partially updates an announcement. When the visible
+// content (title/content) actually changes, per-user read records are cleared
+// so every user gets re-notified; active-only toggles keep read state.
+func (s *Service) AdminUpdateAnnouncement(id, title, string_content string, active *bool, operator string) *ServiceError {
 	a, err := s.Store.GetAnnouncement(id)
 	if err != nil {
 		return fail(404, "公告不存在")
 	}
-	if strings.TrimSpace(title) != "" {
+	contentChanged := false
+	if strings.TrimSpace(title) != "" && title != a.Title {
 		a.Title = title
+		contentChanged = true
 	}
-	if strings.TrimSpace(string_content) != "" {
+	if strings.TrimSpace(string_content) != "" && string_content != a.Content {
 		a.Content = string_content
+		contentChanged = true
 	}
 	if active != nil {
 		a.Active = *active
 	}
-	if err := s.Store.UpdateAnnouncement(a); err != nil {
+	if contentChanged {
+		if err := s.Store.UpdateAnnouncementResetReads(a); err != nil {
+			return fail(500, "服务器繁忙")
+		}
+	} else if err := s.Store.UpdateAnnouncement(a); err != nil {
 		return fail(500, "服务器繁忙")
 	}
+	auditLog("update-announcement", fmt.Sprintf("%s contentChanged=%v", id, contentChanged), operator)
 	return nil
 }
 

@@ -80,19 +80,22 @@ const prevPage = async () => {
         </div>
       </div>
 
-      <button
-        v-for="item in conversations"
-        :key="item.id"
-        class="historyItem"
-        :class="{ active: activeId === item.id }"
-        @click="loadDetail(item.id)"
-      >
-        <div>
-          <strong>{{ item.title }}</strong>
-          <p class="mutedText">{{ item.userPhone }}</p>
-        </div>
-        <small>{{ formatTime(item.updatedAt) }}</small>
-      </button>
+      <div class="historyList">
+        <button
+          v-for="item in conversations"
+          :key="item.id"
+          class="historyItem"
+          :class="{ active: activeId === item.id }"
+          @click="loadDetail(item.id)"
+        >
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p class="mutedText">{{ item.userPhone }}</p>
+          </div>
+          <small>{{ formatTime(item.updatedAt) }}</small>
+        </button>
+        <p v-if="conversations.length === 0" class="mutedText emptyList">没有符合条件的会话</p>
+      </div>
 
       <div class="pagerRow">
         <button class="ghostBtn" @click="prevPage">上一页</button>
@@ -165,6 +168,12 @@ const prevPage = async () => {
   text-align: left;
   cursor: pointer;
   transition: all 0.18s ease;
+}
+
+.historyList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .historyItem strong,
@@ -337,28 +346,90 @@ const prevPage = async () => {
   color: var(--text-soft);
 }
 
+.emptyList {
+  text-align: center;
+  padding: 18px 0;
+  font-size: 13px;
+}
+
 @media (max-width: 980px) {
+  /* 手机端保持左右分栏：左列表右详情，各自内部滚动 */
   .conversationPanel {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 10px;
+    align-items: start;
   }
 
   .conversationHistoryCard,
   .transcriptPanel {
-    padding: 16px;
+    padding: 12px;
+    max-height: calc(100dvh - 170px);
+    overflow: hidden;
+  }
+
+  .conversationHistoryCard .sectionTitle,
+  .transcriptPanel .sectionTitle {
+    margin: 8px 0 10px;
+    font-size: 16px;
   }
 
   .queryCluster {
-    padding: 12px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .queryCluster .toolbarRow {
+    gap: 6px;
+  }
+
+  .queryCluster input {
+    font-size: 13px;
+    padding: 8px 10px;
   }
 
   .historyItem {
     flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    margin-bottom: 8px;
+  }
+
+  .historyItem strong,
+  .historyItem p,
+  .historyItem small {
+    font-size: 12px;
+  }
+
+  .pagerRow {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .transcriptBubble {
+    padding: 10px 12px;
+    border-radius: 16px;
+    margin-bottom: 8px;
   }
 
   .transcriptBubble header {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .conversationHistoryCard,
+  .transcriptPanel {
+    padding: 10px 8px;
+  }
+
+  .historyItem strong,
+  .historyItem p,
+  .historyItem small,
+  .transcriptBubble p {
+    font-size: 12px;
   }
 }
 </style>

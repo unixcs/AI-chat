@@ -35,6 +35,9 @@ test('chat view exposes the redesigned stage, composer shell, and history panel'
   assert.match(vue, /class="messageViewport"/)
   assert.match(vue, /class="composerShell"/)
   assert.match(vue, /class="historyDrawerPanel card"/)
+  // 2026-09 验收反馈：桌面端只保留主对话区，历史一律经“历史”按钮抽屉加载
+  assert.doesNotMatch(vue, /historySidebar/)
+  assert.match(vue, /@click="openHistoryDrawer"/)
 })
 
 test('public auth pages adopt the new hero and surface structure', () => {

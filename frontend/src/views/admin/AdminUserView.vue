@@ -18,6 +18,7 @@ const users = ref([])
 const total = ref(0)
 const loading = ref(false)
 const noticeText = ref('')
+const errorText = ref('')
 
 const queryState = reactive({
   phone: '',
@@ -85,6 +86,7 @@ const openMemberExpireDialog = (user) => {
   memberExpireState.phone = user.phone
   memberExpireState.nickname = user.nickname
   memberExpireState.value = formatMemberExpireAtForInput(user.memberExpireAt)
+  errorText.value = ''
 }
 
 const fillCurrentMemberExpireAt = () => {
@@ -156,12 +158,15 @@ const submitMemberExpireAt = async () => {
   }
 
   memberExpireState.submitting = true
+  errorText.value = ''
   try {
     const value = memberExpireState.value || null
     await updateAdminUserMemberExpireAt(memberExpireState.userId, value)
     noticeText.value = '会员到期时间更新成功'
     closeMemberExpireDialog()
     await loadUsers()
+  } catch (error) {
+    errorText.value = error.response?.data?.message || '会员到期时间保存失败'
   } finally {
     memberExpireState.submitting = false
   }
@@ -182,6 +187,7 @@ const submitMemberExpireAt = async () => {
       <button class="ghostBtn" @click="queryState.page = 1; loadUsers()">查询</button>
     </div>
     <p v-if="noticeText" class="mutedText">{{ noticeText }}</p>
+    <p v-if="errorText" class="dangerText">{{ errorText }}</p>
     <div class="tableWrap">
       <table>
         <thead>
@@ -200,15 +206,15 @@ const submitMemberExpireAt = async () => {
             <td colspan="7" class="mutedText">加载中...</td>
           </tr>
           <tr v-for="item in users" :key="item.id">
-            <td>{{ item.phone }}</td>
-            <td>{{ item.nickname }}</td>
-            <td>{{ item.role }}</td>
-            <td>
+            <td data-label="手机号">{{ item.phone }}</td>
+            <td data-label="昵称">{{ item.nickname }}</td>
+            <td data-label="角色">{{ item.role }}</td>
+            <td data-label="状态">
               <span class="tag" :class="item.status === 'active' ? 'tagSuccess' : 'tagDanger'">
                 {{ item.status === 'active' ? '正常' : '禁用' }}
               </span>
             </td>
-            <td>
+            <td data-label="会员到期">
               <div class="memberExpireCell">
                 <span class="tag" :class="getMemberExpireMeta(item.memberExpireAt).tagClass">
                   {{ getMemberExpireMeta(item.memberExpireAt).label }}
@@ -218,8 +224,8 @@ const submitMemberExpireAt = async () => {
                 </small>
               </div>
             </td>
-            <td>{{ formatTime(item.createdAt) }}</td>
-            <td>
+            <td data-label="注册时间">{{ formatTime(item.createdAt) }}</td>
+            <td data-label="操作">
               <div class="actionGroup">
                 <button class="ghostBtn" @click="startEdit(item)">编辑</button>
                 <button class="ghostBtn" @click="openMemberExpireDialog(item)">设置会员</button>
@@ -286,6 +292,7 @@ const submitMemberExpireAt = async () => {
             step="1"
           />
           <p class="mutedText memberExpireHelp">支持精确到秒，留空表示清除会员时间</p>
+          <p v-if="errorText" class="dangerText memberExpireError">{{ errorText }}</p>
         </div>
 
         <div class="memberExpireDialogActions">
@@ -444,6 +451,10 @@ const submitMemberExpireAt = async () => {
   flex: 1;
 }
 
+.memberExpireError {
+  margin: 8px 0 0;
+}
+
 @media (max-width: 980px) {
   .panel {
     padding: 12px;
@@ -508,8 +519,57 @@ const submitMemberExpireAt = async () => {
 }
 
 @media (max-width: 640px) {
-  .actionGroup {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 手机端放弃表格布局：每行一张卡片，标签左/值右，杜绝逐字竖排 */
+  .tableWrap thead {
+    display: none;
+  }
+
+  .tableWrap tr {
+    display: block;
+    border: 1px solid var(--line-soft);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.4);
+    padding: 4px 14px;
+    margin-bottom: 10px;
+  }
+
+  [data-theme='dark'] .tableWrap tr {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .tableWrap td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border: none;
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .tableWrap td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-soft);
+    text-align: left;
+  }
+
+  .tableWrap td[colspan] {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .actionGroup .ghostBtn {
+    padding: 6px 8px;
+    min-height: 30px;
+  }
+
+  .memberExpireText {
+    text-align: right;
   }
 }
 </style>

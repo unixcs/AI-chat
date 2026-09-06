@@ -138,6 +138,28 @@ func TestAnnouncementUnreadFlow(t *testing.T) {
 	}
 }
 
+func TestUpdateAnnouncementResetReads(t *testing.T) {
+	s := openTest(t)
+	ann := annFixture("a1", "维护通知", "今晚维护", true)
+	if err := s.CreateAnnouncement(ann); err != nil {
+		t.Fatalf("create ann: %v", err)
+	}
+	if err := s.AckAnnouncement("a1", "u1"); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+	ann.Content = "改期到明晚维护"
+	if err := s.UpdateAnnouncementResetReads(ann); err != nil {
+		t.Fatalf("update+reset: %v", err)
+	}
+	got, err := s.CurrentUnreadAnnouncement("u1")
+	if err != nil || got.ID != "a1" || got.Content != "改期到明晚维护" {
+		t.Fatalf("reset must re-notify: %v %+v", err, got)
+	}
+	if err := s.UpdateAnnouncementResetReads(annFixture("missing", "x", "y", true)); err != ErrNotFound {
+		t.Fatalf("missing ann must be ErrNotFound, got %v", err)
+	}
+}
+
 func TestSettingsUpsert(t *testing.T) {
 	s := openTest(t)
 	if v := s.GetSetting("registrationOpen", "x"); v != "x" {

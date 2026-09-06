@@ -152,16 +152,16 @@ const formatTime = (time) => {
         </thead>
         <tbody>
           <tr v-for="item in announcements" :key="item.id">
-            <td>{{ item.title }}</td>
-            <td class="contentCell">{{ item.content }}</td>
-            <td>
+            <td data-label="标题">{{ item.title }}</td>
+            <td data-label="内容" class="contentCell">{{ item.content }}</td>
+            <td data-label="状态">
               <span class="tag" :class="item.active ? 'tagActive' : 'tagOff'">
                 {{ item.active ? '生效中' : '已停用' }}
               </span>
             </td>
-            <td>{{ item.readCount ?? 0 }}</td>
-            <td>{{ formatTime(item.createdAt) }}</td>
-            <td>
+            <td data-label="已读人数">{{ item.readCount ?? 0 }}</td>
+            <td data-label="发布时间">{{ formatTime(item.createdAt) }}</td>
+            <td data-label="操作">
               <div class="rowActions">
                 <button class="ghostBtn" @click="startEdit(item)">编辑</button>
                 <button class="ghostBtn" @click="toggleActive(item)">
@@ -304,5 +304,55 @@ table th {
   color: var(--danger, #c65d4b);
   font-size: 13px;
   margin: 0;
+}
+
+@media (max-width: 640px) {
+  /* 手机端放弃表格布局：每条公告一张卡片，避免逐字竖排 */
+  .tableWrap thead {
+    display: none;
+  }
+
+  .tableWrap tr {
+    display: block;
+    border: 1px solid var(--line-soft);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.4);
+    padding: 4px 14px;
+    margin-bottom: 10px;
+  }
+
+  [data-theme='dark'] .tableWrap tr {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .tableWrap td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border: none;
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .tableWrap td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-soft);
+    text-align: left;
+  }
+
+  .tableWrap td[colspan] {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .contentCell {
+    max-width: none;
+  }
 }
 </style>
