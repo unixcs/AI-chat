@@ -31,6 +31,8 @@ func (s *Service) AdminUpdatePrefPrompt(dimension, value, content, operator stri
 	if len(content) > maxPrefPromptBytes {
 		return fail(400, "提示词过长，最多 %d 字节", maxPrefPromptBytes)
 	}
+	// HTTP 入口的 JSON 解码已把非法 UTF-8 强转为 U+FFFD（与 Node 一致，R12a 实测），
+	// 此检查仅防御 service 层被非 HTTP 路径直调。
 	if !utf8.ValidString(content) {
 		return fail(400, "提示词内容编码不正确")
 	}

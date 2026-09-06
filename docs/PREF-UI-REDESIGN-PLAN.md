@@ -169,3 +169,19 @@
 - 旧用户 profile 无 answerFormat → 返回 null + 前端 standard 兜底，无迁移需要；
 - **`纯文字` 验收口径**：验收 = 指令确实按序拼入 system（P3/P5 锁定），**不把模型遵从性当验收门**（不做输出后处理，超出第一版范围，记偏差待验收）；
 - Part D 前的版本锚点（tag pre-ui-redesign + GitHub push）是 UI 不满意时的快速回滚保险，阶段一完成即执行。
+
+## §6 R12a 对抗审查结果与修复记录（2026-09-06）
+
+**VERDICT: BREACH** → 全部发现项已修复，真机回归 ALL PASS。8 向量中 7 个 PASS（内容正确性/偏好并发契约/组装语义/后台卡片页/回归狩猎/新端点契约/种子迁移 E2E），复制兜底路径 FAIL。
+
+| 级别 | 发现 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | 复制兜底整体失效：`removeAllRanges()+selectNodeContents(textarea)+addRange` 中 textarea 无子节点 → range 恒空，且 removeAllRanges 销毁 select()/setSelectionRange() 刚建立的真选区；execCommand 返回 true 但 OS 剪贴板不变（假成功） | 删除整块 Range 选区逻辑；改为 clipboard.js 式实战验证链：readonly→focus→**移除 readonly**→select→setSelectionRange→execCommand；窗口选区仅在 copy 后清理并恢复用户原选区 | Chromium 149 CDP：种入 STALE → 兜底复制 → readText=新文本（5 场景：用户消息/AI markdown/2万字/emoji/多行）；insecure origin（copyhost.test 模拟生产 http://IP）选区在 copy 瞬间覆盖全文 |
+| P1 | clipboard.test.js「iOS path」假绿灯：createRange stub 为 no-op，未验证 range 覆盖内容 | 重写为诚实的结构断言：生命周期顺序锁（focus→readonly移除→select→setSelectionRange→execCommand）、`selectNodeContents` 在源码中明令禁止（剥离注释后匹配）、原选区恢复断言；真机端到端证据由 CDP 工装提供 | 73/73 jsdom 绿 + 12/12 CDP PASS |
+| P3 | 注释与代码矛盾（声称非 readonly 实挂 readonly） | readonly 仅在 focus 前存在（防移动端键盘弹出），选区前移除（iOS readonly 选区缺陷） | 已实现 |
+| P3 | Plan §1.2(3) 两处未做：textarea 未贴滚动位置；copy 后未恢复原选区 | 均已落实：`top=pageYOffset`（iOS 只复制视口内选区）；`prevRange` 捕获并在 copy 后恢复 | 真机 PASS |
+| P3 | Plan §2.6「Profile/Settings 同步展示」未实现 | ProfileView + SettingsView 各增只读「回答偏好」展示块（标签映射与 ChatView 一致，standard 兜底） | — |
+| P3 | PUT preferences 空/缺省由"清列"变"不改列" | 有意加固（动态 SET），无现存前端路径发空串，记为语义偏差 | R12a 30 线程并发混合 PUT 无丢字段 |
+| P3 | utf8.ValidString 在 JSON 入口不可达（json 已强转 U+FFFD） | 保留为直调防御 + 语义注释 | — |
+
+**遗留声明**：jsdom 无法证明 OS 剪贴板端到端（R12a 的核心教训），真实浏览器证据由 CDP 工装（/tmp 工装思路已固化进测试注释与本文档）提供；UI 重建（Part D）若触碰 ChatView 复制按钮，须复跑同款 CDP 验证。
