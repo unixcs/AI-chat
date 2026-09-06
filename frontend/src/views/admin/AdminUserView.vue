@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import {
   getAdminUsersByQuery,
@@ -13,6 +13,32 @@ import {
   formatMemberExpireAtForInput,
   formatNowForMemberExpireInput
 } from '../../utils/admin-member-expire'
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Label from '@/components/ui/label/Label.vue'
+import Select from '@/components/ui/select/Select.vue'
+import SelectTrigger from '@/components/ui/select/SelectTrigger.vue'
+import SelectValue from '@/components/ui/select/SelectValue.vue'
+import SelectContent from '@/components/ui/select/SelectContent.vue'
+import SelectItem from '@/components/ui/select/SelectItem.vue'
+import Dialog from '@/components/ui/dialog/Dialog.vue'
+import DialogContent from '@/components/ui/dialog/DialogContent.vue'
+import DialogHeader from '@/components/ui/dialog/DialogHeader.vue'
+import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
+import DialogDescription from '@/components/ui/dialog/DialogDescription.vue'
+import DialogFooter from '@/components/ui/dialog/DialogFooter.vue'
+import Table from '@/components/ui/table/Table.vue'
+import TableHeader from '@/components/ui/table/TableHeader.vue'
+import TableBody from '@/components/ui/table/TableBody.vue'
+import TableRow from '@/components/ui/table/TableRow.vue'
+import TableHead from '@/components/ui/table/TableHead.vue'
+import TableCell from '@/components/ui/table/TableCell.vue'
+import { toast } from 'vue-sonner'
+import { ChevronLeft, ChevronRight, Search, Users } from 'lucide-vue-next'
 
 const users = ref([])
 const total = ref(0)
@@ -73,6 +99,14 @@ const getMemberExpireMeta = (time) => {
   return getMemberExpireDisplayMeta(time)
 }
 
+// 旧工具函数返回 tagClass（tagSuccess/tagWarn/tagDanger），映射到 Badge variant
+const memberBadgeVariant = (time) => {
+  const tagClass = getMemberExpireMeta(time).tagClass
+  if (tagClass === 'tagSuccess') return 'default'
+  if (tagClass === 'tagDanger') return 'destructive'
+  return 'secondary'
+}
+
 const closeMemberExpireDialog = () => {
   memberExpireState.userId = ''
   memberExpireState.phone = ''
@@ -117,6 +151,7 @@ const prevPage = async () => {
 const updateStatus = async (user, status) => {
   await updateAdminUserStatus(user.id, status)
   noticeText.value = '状态更新成功'
+  toast.success('状态更新成功')
   await loadUsers()
 }
 
@@ -135,6 +170,7 @@ const submitEdit = async () => {
     nickname: editState.nickname
   })
   noticeText.value = '用户信息更新成功'
+  toast.success('用户信息更新成功')
   editState.id = ''
   editState.phone = ''
   editState.nickname = ''
@@ -148,6 +184,7 @@ const resetPassword = async (userId) => {
   }
   await resetAdminUserPassword(userId, passwordState.newPassword)
   noticeText.value = '密码重置成功'
+  toast.success('密码重置成功')
   passwordState.userId = ''
   passwordState.newPassword = ''
 }
@@ -163,6 +200,7 @@ const submitMemberExpireAt = async () => {
     const value = memberExpireState.value || null
     await updateAdminUserMemberExpireAt(memberExpireState.userId, value)
     noticeText.value = '会员到期时间更新成功'
+    toast.success('会员到期时间更新成功')
     closeMemberExpireDialog()
     await loadUsers()
   } catch (error) {
@@ -171,405 +209,210 @@ const submitMemberExpireAt = async () => {
     memberExpireState.submitting = false
   }
 }
+
+const editUser = () => users.value.find((u) => u.id === editState.id)
+const passwordUser = () => users.value.find((u) => u.id === passwordState.userId)
+
+// reka-ui SelectItem 禁止空字符串 value：用哨兵值映射查询状态（view 层代理，不改业务逻辑）
+const STATUS_ALL = '__all__'
+const statusFilter = computed({
+  get: () => (queryState.status === '' ? STATUS_ALL : queryState.status),
+  set: (v) => { queryState.status = v === STATUS_ALL ? '' : v },
+})
 </script>
 
 <template>
-  <section class="card panelShell panel userPanel">
-    <span class="sectionLabel">Users</span>
-    <h2 class="sectionTitle">用户管理</h2>
-    <div class="toolbarRow">
-      <input v-model="queryState.phone" placeholder="按手机号筛选" />
-      <select v-model="queryState.status">
-        <option value="">全部状态</option>
-        <option value="active">正常</option>
-        <option value="disabled">禁用</option>
-      </select>
-      <button class="ghostBtn" @click="queryState.page = 1; loadUsers()">查询</button>
-    </div>
-    <p v-if="noticeText" class="mutedText">{{ noticeText }}</p>
-    <p v-if="errorText" class="dangerText">{{ errorText }}</p>
-    <div class="tableWrap">
-      <table>
-        <thead>
-          <tr>
-            <th>手机号</th>
-            <th>昵称</th>
-            <th>角色</th>
-            <th>状态</th>
-            <th>会员到期</th>
-            <th>注册时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td colspan="7" class="mutedText">加载中...</td>
-          </tr>
-          <tr v-for="item in users" :key="item.id">
-            <td data-label="手机号">{{ item.phone }}</td>
-            <td data-label="昵称">{{ item.nickname }}</td>
-            <td data-label="角色">{{ item.role }}</td>
-            <td data-label="状态">
-              <span class="tag" :class="item.status === 'active' ? 'tagSuccess' : 'tagDanger'">
-                {{ item.status === 'active' ? '正常' : '禁用' }}
-              </span>
-            </td>
-            <td data-label="会员到期">
-              <div class="memberExpireCell">
-                <span class="tag" :class="getMemberExpireMeta(item.memberExpireAt).tagClass">
-                  {{ getMemberExpireMeta(item.memberExpireAt).label }}
-                </span>
-                <small class="memberExpireText mutedText">
-                  {{ getMemberExpireMeta(item.memberExpireAt).formattedTime }}
-                </small>
+  <section class="mx-auto max-w-6xl space-y-4">
+    <Card>
+      <CardContent class="p-5 sm:p-6">
+        <h2 class="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+          <Users class="size-5 text-primary" />
+          用户管理
+        </h2>
+
+        <form class="mt-4 flex flex-col gap-2.5 sm:flex-row" @submit.prevent="queryState.page = 1; loadUsers()">
+          <Input v-model="queryState.phone" placeholder="按手机号筛选" class="sm:max-w-xs" />
+          <Select v-model="statusFilter">
+            <SelectTrigger class="sm:w-40">
+              <SelectValue placeholder="全部状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">全部状态</SelectItem>
+              <SelectItem value="active">正常</SelectItem>
+              <SelectItem value="disabled">禁用</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button type="submit" variant="outline" class="sm:w-28">
+            <Search class="size-4" />
+            查询
+          </Button>
+        </form>
+
+        <Alert v-if="errorText" variant="destructive" class="mt-3">{{ errorText }}</Alert>
+        <p v-if="noticeText && !errorText" class="mt-3 mb-0 text-[13px] text-primary">{{ noticeText }}</p>
+
+        <!-- 桌面表格 -->
+        <div class="mt-4 hidden overflow-hidden rounded-xl border border-border md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>手机号</TableHead>
+                <TableHead>昵称</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>会员到期</TableHead>
+                <TableHead>注册时间</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-if="loading">
+                <TableCell colspan="7" class="text-muted-foreground">加载中...</TableCell>
+              </TableRow>
+              <TableRow v-for="item in users" :key="item.id">
+                <TableCell class="font-medium">{{ item.phone }}</TableCell>
+                <TableCell>{{ item.nickname }}</TableCell>
+                <TableCell>{{ item.role }}</TableCell>
+                <TableCell>
+                  <Badge :variant="item.status === 'active' ? 'default' : 'destructive'">
+                    {{ item.status === 'active' ? '正常' : '禁用' }}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div class="flex flex-col items-start gap-1">
+                    <Badge :variant="memberBadgeVariant(item.memberExpireAt)">
+                      {{ getMemberExpireMeta(item.memberExpireAt).label }}
+                    </Badge>
+                    <small class="text-xs text-muted-foreground">{{ getMemberExpireMeta(item.memberExpireAt).formattedTime }}</small>
+                  </div>
+                </TableCell>
+                <TableCell class="text-muted-foreground">{{ formatTime(item.createdAt) }}</TableCell>
+                <TableCell>
+                  <div class="flex flex-wrap gap-1.5">
+                    <Button variant="outline" size="sm" @click="startEdit(item)">编辑</Button>
+                    <Button variant="outline" size="sm" @click="openMemberExpireDialog(item)">设置会员</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click="updateStatus(item, item.status === 'active' ? 'disabled' : 'active')"
+                    >
+                      {{ item.status === 'active' ? '禁用' : '启用' }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="passwordState.userId = item.id">重置密码</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        <!-- 移动卡片列表 -->
+        <div class="mt-4 grid gap-2.5 md:hidden">
+          <p v-if="loading" class="text-sm text-muted-foreground">加载中...</p>
+          <Card v-for="item in users" :key="item.id" class="shadow-none">
+            <CardContent class="grid gap-2 p-4">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-semibold text-foreground">{{ item.phone }}</span>
+                <Badge :variant="item.status === 'active' ? 'default' : 'destructive'">
+                  {{ item.status === 'active' ? '正常' : '禁用' }}
+                </Badge>
               </div>
-            </td>
-            <td data-label="注册时间">{{ formatTime(item.createdAt) }}</td>
-            <td data-label="操作">
-              <div class="actionGroup">
-                <button class="ghostBtn" @click="startEdit(item)">编辑</button>
-                <button class="ghostBtn" @click="openMemberExpireDialog(item)">设置会员</button>
-                <button
-                  class="ghostBtn"
+              <p class="m-0 text-sm text-muted-foreground">{{ item.nickname }} · {{ item.role }}</p>
+              <div class="flex items-center gap-2">
+                <Badge :variant="memberBadgeVariant(item.memberExpireAt)">
+                  会员{{ getMemberExpireMeta(item.memberExpireAt).label }}
+                </Badge>
+                <small class="text-xs text-muted-foreground">{{ getMemberExpireMeta(item.memberExpireAt).formattedTime }}</small>
+              </div>
+              <p class="m-0 text-xs text-faint">注册：{{ formatTime(item.createdAt) }}</p>
+              <div class="mt-1 grid grid-cols-2 gap-1.5">
+                <Button variant="outline" size="sm" @click="startEdit(item)">编辑</Button>
+                <Button variant="outline" size="sm" @click="openMemberExpireDialog(item)">设置会员</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   @click="updateStatus(item, item.status === 'active' ? 'disabled' : 'active')"
                 >
                   {{ item.status === 'active' ? '禁用' : '启用' }}
-                </button>
-                <button class="ghostBtn" @click="passwordState.userId = item.id">重置密码</button>
+                </Button>
+                <Button variant="outline" size="sm" @click="passwordState.userId = item.id">重置密码</Button>
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="pagerRow">
-      <button class="ghostBtn" @click="prevPage">上一页</button>
-      <span class="mutedText">第 {{ queryState.page }} 页 / 共 {{ Math.max(1, Math.ceil(total / queryState.pageSize)) }} 页</span>
-      <button class="ghostBtn" @click="nextPage">下一页</button>
-    </div>
-
-    <section v-if="editState.id" class="editBox card">
-      <h3>编辑用户</h3>
-      <div class="toolbarRow">
-        <input v-model="editState.phone" placeholder="手机号" />
-        <input v-model="editState.nickname" placeholder="昵称" />
-        <button class="primaryBtn" @click="submitEdit">保存</button>
-      </div>
-    </section>
-
-    <section v-if="passwordState.userId" class="editBox card">
-      <h3>重置密码</h3>
-      <div class="toolbarRow">
-        <input v-model="passwordState.newPassword" type="password" placeholder="输入新密码" />
-        <button class="primaryBtn" @click="resetPassword(passwordState.userId)">确认重置</button>
-        <button class="ghostBtn" @click="passwordState.userId = ''">取消</button>
-      </div>
-    </section>
-
-    <div
-      v-if="memberExpireState.userId"
-      class="memberExpireDialogMask"
-      @click.self="closeMemberExpireDialog"
-    >
-      <section class="memberExpireDialog card">
-        <div class="memberExpireDialogHead">
-          <div>
-            <h3>设置会员到期时间</h3>
-            <p class="mutedText">
-              {{ memberExpireState.nickname || '未设置昵称' }} / {{ memberExpireState.phone }}
-            </p>
-          </div>
-          <button class="ghostBtn" @click="closeMemberExpireDialog">关闭</button>
+            </CardContent>
+          </Card>
         </div>
 
-        <div class="formItem memberExpireField">
-          <label for="member-expire-at-input">会员到期时间</label>
+        <div class="mt-4 flex flex-wrap items-center justify-end gap-2.5">
+          <Button variant="outline" size="sm" :disabled="queryState.page <= 1" @click="prevPage">
+            <ChevronLeft class="size-4" />
+            上一页
+          </Button>
+          <span class="text-[13px] text-muted-foreground">第 {{ queryState.page }} 页 / 共 {{ Math.max(1, Math.ceil(total / queryState.pageSize)) }} 页</span>
+          <Button variant="outline" size="sm" @click="nextPage">
+            下一页
+            <ChevronRight class="size-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 编辑用户 -->
+    <Card v-if="editState.id">
+      <CardContent class="p-5">
+        <h3 class="text-[15px] font-semibold text-card-foreground">编辑用户{{ editUser() ? ` · ${editUser().phone}` : '' }}</h3>
+        <form class="mt-3 flex flex-col gap-2.5 sm:flex-row" @submit.prevent="submitEdit">
+          <Input v-model="editState.phone" placeholder="手机号" />
+          <Input v-model="editState.nickname" placeholder="昵称" />
+          <Button type="submit" class="sm:w-24">保存</Button>
+        </form>
+      </CardContent>
+    </Card>
+
+    <!-- 重置密码 -->
+    <Card v-if="passwordState.userId">
+      <CardContent class="p-5">
+        <h3 class="text-[15px] font-semibold text-card-foreground">重置密码{{ passwordUser() ? ` · ${passwordUser().phone}` : '' }}</h3>
+        <form class="mt-3 flex flex-col gap-2.5 sm:flex-row" @submit.prevent="resetPassword(passwordState.userId)">
+          <Input v-model="passwordState.newPassword" type="password" placeholder="输入新密码" />
+          <Button type="submit" class="sm:w-28">确认重置</Button>
+          <Button variant="ghost" class="sm:w-20" @click="passwordState.userId = ''">取消</Button>
+        </form>
+      </CardContent>
+    </Card>
+
+    <!-- 设置会员到期时间 -->
+    <Dialog :open="!!memberExpireState.userId" @update:open="(v) => { if (!v) closeMemberExpireDialog() }">
+      <DialogContent class="max-w-md">
+        <DialogHeader>
+          <DialogTitle>设置会员到期时间</DialogTitle>
+          <DialogDescription>{{ memberExpireState.nickname || '未设置昵称' }} / {{ memberExpireState.phone }}</DialogDescription>
+        </DialogHeader>
+
+        <div class="grid gap-2">
+          <Label for="member-expire-at-input">会员到期时间</Label>
           <input
             id="member-expire-at-input"
             v-model="memberExpireState.value"
             type="datetime-local"
             step="1"
+            class="flex h-11 w-full rounded-md border border-input bg-card/70 px-3.5 py-2 text-[15px] text-foreground shadow-sm transition-colors focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          <p class="mutedText memberExpireHelp">支持精确到秒，留空表示清除会员时间</p>
-          <p v-if="errorText" class="dangerText memberExpireError">{{ errorText }}</p>
+          <p class="m-0 text-xs text-muted-foreground">支持精确到秒，留空表示清除会员时间</p>
+          <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
         </div>
 
-        <div class="memberExpireDialogActions">
-          <button class="ghostBtn" @click="fillCurrentMemberExpireAt">此刻</button>
-          <button class="ghostBtn" @click="clearMemberExpireAt">清除</button>
-          <span class="memberExpireDialogSpacer"></span>
-          <button class="ghostBtn" @click="closeMemberExpireDialog">取消</button>
-          <button
-            class="primaryBtn"
-            :disabled="memberExpireState.submitting"
-            @click="submitMemberExpireAt"
-          >
-            {{ memberExpireState.submitting ? '保存中...' : '确定' }}
-          </button>
-        </div>
-      </section>
-    </div>
+        <DialogFooter class="gap-2 sm:justify-between">
+          <div class="flex gap-2">
+            <Button variant="outline" size="sm" @click="fillCurrentMemberExpireAt">此刻</Button>
+            <Button variant="outline" size="sm" @click="clearMemberExpireAt">清除</Button>
+          </div>
+          <div class="flex gap-2">
+            <Button variant="ghost" size="sm" @click="closeMemberExpireDialog">取消</Button>
+            <Button :disabled="memberExpireState.submitting" @click="submitMemberExpireAt">
+              {{ memberExpireState.submitting ? '保存中...' : '确定' }}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>
-
-<style scoped>
-.panel {
-  padding: 20px;
-}
-
-.userPanel .sectionTitle {
-  margin: 14px 0 18px;
-}
-
-.tableWrap table {
-  width: 100%;
-}
-
-.tableWrap :deep(th),
-.tableWrap :deep(td) {
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.actionGroup {
-  display: flex;
-  gap: 8px;
-}
-
-.actionGroup .ghostBtn {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.editBox {
-  margin-top: 12px;
-  padding: 12px;
-}
-
-.editBox h3 {
-  margin: 0 0 10px;
-}
-
-.memberExpireCell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.memberExpireText {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.memberExpireDialogMask {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(3, 8, 20, 0.72);
-  backdrop-filter: blur(10px);
-}
-
-.memberExpireDialog {
-  width: min(560px, 100%);
-  padding: 20px;
-  border: 1px solid rgba(110, 143, 191, 0.22);
-  background:
-    linear-gradient(180deg, rgba(23, 34, 51, 0.96) 0%, rgba(13, 21, 35, 0.98) 100%),
-    var(--bg-panel);
-  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.55);
-}
-
-.memberExpireDialogHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.memberExpireDialogHead h3 {
-  margin: 0 0 6px;
-  color: #f8fbff;
-}
-
-.memberExpireDialogHead .mutedText {
-  margin: 0;
-  color: #97abc8;
-}
-
-.memberExpireField {
-  margin-bottom: 18px;
-}
-
-.memberExpireField label {
-  color: #d8e4f6;
-}
-
-.memberExpireField input {
-  color-scheme: dark;
-  border-color: rgba(114, 140, 180, 0.35);
-  background: rgba(13, 20, 33, 0.96);
-  color: #f8fbff;
-}
-
-.memberExpireField input:focus {
-  outline: 2px solid rgba(94, 160, 255, 0.24);
-  border-color: #5ea0ff;
-}
-
-.memberExpireHelp {
-  margin: 8px 0 0;
-  color: #8fa6c5;
-}
-
-.memberExpireDialogActions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.memberExpireDialogActions .ghostBtn {
-  border-color: rgba(114, 140, 180, 0.35);
-  background: rgba(14, 22, 37, 0.88);
-  color: #e5ecf6;
-}
-
-.memberExpireDialogActions .ghostBtn:hover {
-  border-color: rgba(148, 176, 221, 0.55);
-  background: rgba(24, 36, 57, 0.98);
-}
-
-.memberExpireDialogSpacer {
-  flex: 1;
-}
-
-.memberExpireError {
-  margin: 8px 0 0;
-}
-
-@media (max-width: 980px) {
-  .panel {
-    padding: 12px;
-  }
-
-  .tableWrap :deep(th),
-  .tableWrap :deep(td) {
-    padding: 11px 10px;
-    font-size: 13px;
-  }
-
-  .toolbarRow {
-    flex-direction: column;
-  }
-
-  .toolbarRow .ghostBtn,
-  .toolbarRow .primaryBtn {
-    width: 100%;
-  }
-
-  .actionGroup {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .actionGroup .ghostBtn {
-    width: 100%;
-    padding: 7px 6px;
-  }
-
-  .pagerRow {
-    flex-direction: column;
-    align-items: stretch;
-    row-gap: 6px;
-  }
-
-  .editBox {
-    padding: 10px;
-  }
-
-  .memberExpireDialogMask {
-    padding: 12px;
-    align-items: flex-end;
-  }
-
-  .memberExpireDialog {
-    width: 100%;
-    padding: 16px;
-    border-radius: 16px 16px 12px 12px;
-  }
-
-  .memberExpireDialogHead,
-  .memberExpireDialogActions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .memberExpireDialogSpacer {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  /* 手机端放弃表格布局：每行一张卡片，标签左/值右，杜绝逐字竖排 */
-  .tableWrap thead {
-    display: none;
-  }
-
-  .tableWrap tr {
-    display: block;
-    border: 1px solid var(--line-soft);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.4);
-    padding: 4px 14px;
-    margin-bottom: 10px;
-  }
-
-  [data-theme='dark'] .tableWrap tr {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .tableWrap td {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 8px 0;
-    border: none;
-    font-size: 13px;
-    text-align: right;
-  }
-
-  .tableWrap td::before {
-    content: attr(data-label);
-    flex: 0 0 auto;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-soft);
-    text-align: left;
-  }
-
-  .tableWrap td[colspan] {
-    justify-content: center;
-    text-align: center;
-  }
-
-  .actionGroup .ghostBtn {
-    padding: 6px 8px;
-    min-height: 30px;
-  }
-
-  .memberExpireText {
-    text-align: right;
-  }
-}
-</style>

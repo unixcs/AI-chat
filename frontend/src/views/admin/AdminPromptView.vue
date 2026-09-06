@@ -10,6 +10,22 @@ import {
   updateAdminPrefPrompt,
   resetAdminPrefPrompt
 } from '../../api/admin'
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import Textarea from '@/components/ui/textarea/Textarea.vue'
+import AlertDialog from '@/components/ui/alert-dialog/AlertDialog.vue'
+import AlertDialogContent from '@/components/ui/alert-dialog/AlertDialogContent.vue'
+import AlertDialogHeader from '@/components/ui/alert-dialog/AlertDialogHeader.vue'
+import AlertDialogTitle from '@/components/ui/alert-dialog/AlertDialogTitle.vue'
+import AlertDialogDescription from '@/components/ui/alert-dialog/AlertDialogDescription.vue'
+import AlertDialogFooter from '@/components/ui/alert-dialog/AlertDialogFooter.vue'
+import AlertDialogAction from '@/components/ui/alert-dialog/AlertDialogAction.vue'
+import AlertDialogCancel from '@/components/ui/alert-dialog/AlertDialogCancel.vue'
+import { toast } from 'vue-sonner'
+import { History, RotateCcw, Save, SlidersHorizontal } from 'lucide-vue-next'
 
 const info = ref({ content: '', version: null, updatedAt: null, operator: null, source: 'env' })
 const revisions = ref([])
@@ -70,17 +86,16 @@ const savePrefCard = async (card) => {
     prefCards.value = (rev.data.data || []).map((c) => ({ ...c, draft: c.content }))
     prefDirty.value = {}
     prefNotice.value = `「${card.label}」卡片已保存，下一个新聊天立即生效`
+    toast.success(`「${card.label}」卡片已保存`)
   } catch (error) {
     prefError.value = error.response?.data?.message || '保存失败'
+    toast.error(prefError.value)
   } finally {
     prefSavingKey.value = ''
   }
 }
 
 const resetPrefCard = async (card) => {
-  if (!window.confirm(`把「${card.label}」恢复为系统预置文案？`)) {
-    return
-  }
   prefSavingKey.value = prefKey(card)
   prefError.value = ''
   try {
@@ -89,8 +104,10 @@ const resetPrefCard = async (card) => {
     prefCards.value = (rev.data.data || []).map((c) => ({ ...c, draft: c.content }))
     prefDirty.value = {}
     prefNotice.value = `「${card.label}」已恢复预置文案`
+    toast.success(`「${card.label}」已恢复预置文案`)
   } catch (error) {
     prefError.value = error.response?.data?.message || '恢复失败'
+    toast.error(prefError.value)
   } finally {
     prefSavingKey.value = ''
   }
@@ -132,20 +149,18 @@ const save = async () => {
     info.value = data.data
     draft.value = data.data.content
     noticeText.value = `已保存为新版本 v${data.data.version}，新聊天立即生效`
+    toast.success(noticeText.value)
     const rev = await getAdminPromptRevisions()
     revisions.value = rev.data.data || []
   } catch (error) {
     errorText.value = error.response?.data?.message || '保存失败'
+    toast.error(errorText.value)
   } finally {
     saving.value = false
   }
 }
 
 const restore = async (item) => {
-  // 并发保存下"下一个版本号"由服务端决定，确认文案不预推算
-  if (!window.confirm(`恢复到 v${item.version}？将以其内容创建一个新版本（历史保留，可随时再恢复）。`)) {
-    return
-  }
   errorText.value = ''
   noticeText.value = ''
   try {
@@ -153,10 +168,12 @@ const restore = async (item) => {
     info.value = data.data
     draft.value = data.data.content
     noticeText.value = `已恢复 v${item.version} 的内容为新版本 v${data.data.version}`
+    toast.success(noticeText.value)
     const rev = await getAdminPromptRevisions()
     revisions.value = rev.data.data || []
   } catch (error) {
     errorText.value = error.response?.data?.message || '恢复失败'
+    toast.error(errorText.value)
   }
 }
 
@@ -168,298 +185,170 @@ const preview = (content) => {
   const oneLine = content.replace(/\s+/g, ' ').trim()
   return oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine
 }
+
+// ---------- 确认弹层（替代 window.confirm） ----------
+const pendingRestoreRevision = ref(null)
+const pendingResetCard = ref(null)
+
+const confirmRestoreRevision = () => {
+  const item = pendingRestoreRevision.value
+  pendingRestoreRevision.value = null
+  if (item) {
+    restore(item)
+  }
+}
+
+const confirmResetCard = () => {
+  const card = pendingResetCard.value
+  pendingResetCard.value = null
+  if (card) {
+    resetPrefCard(card)
+  }
+}
 </script>
 
 <template>
-  <section class="card panelShell panel promptPanel">
-    <span class="sectionLabel">Prompt</span>
-    <h2 class="sectionTitle">内置提示词管理</h2>
-
-    <div class="metaRow">
-      <span class="tag" :class="info.source === 'db' ? 'tagActive' : 'tagOff'">
-        {{ info.source === 'db' ? `SQLite · v${info.version}` : '环境/出厂配置' }}
-      </span>
-      <small class="mutedText">
-        最后修改：{{ formatTime(info.updatedAt) }}
-        <template v-if="info.operator"> · 操作人：{{ info.operator }}</template>
-      </small>
-    </div>
-    <p class="mutedText promptHint">
-      修改保存后无需重启，下一个新聊天立即使用最新提示词；生成进行中的请求沿用开始时的版本。
-      用户自己的“回答长度 / 回答风格”会叠加在这段提示词之后，互不冲突。
-    </p>
-
-    <div class="editorBox">
-      <textarea v-model="draft" rows="12" spellcheck="false" placeholder="输入系统内置提示词…"></textarea>
-      <div class="editorActions">
-        <span class="mutedText">{{ draftBytes }} / 20000 字节</span>
-        <span class="editorSpacer"></span>
-        <button v-if="dirty" class="ghostBtn" @click="draft = info.content">放弃修改</button>
-        <button class="primaryBtn" :disabled="!dirty || saving" @click="save">
-          {{ saving ? '保存中...' : '保存并生效' }}
-        </button>
-      </div>
-      <p v-if="noticeText" class="okText">{{ noticeText }}</p>
-      <p v-if="errorText" class="dangerText">{{ errorText }}</p>
-      <p v-if="loading" class="mutedText">加载中...</p>
-    </div>
-
-    <h3 class="historyTitle">偏好提示词卡片</h3>
-    <p class="mutedText promptHint">
-      用户在聊天里选择「回答长度 / 回答风格 / 输出格式」后，实际发给 AI 的指令 =
-      上方基础内置 Prompt + 对应的三张卡片文案（按长度 → 风格 → 格式顺序拼接）。
-      卡片已预置默认文案，修改保存后立即生效，无需重启；进行中的请求保持开始时的版本。
-    </p>
-    <div v-if="prefLoading" class="mutedText">加载中...</div>
-    <div v-for="group in prefGroups" :key="group.dimension" class="prefCardGroup">
-      <h4 class="prefGroupTitle">{{ group.title }}</h4>
-      <div v-for="card in group.cards" :key="prefKey(card)" class="prefCard">
-        <div class="prefCardHead">
-          <span class="prefCardLabel">{{ card.label }}</span>
-          <span v-if="card.customized" class="tag tagActive">已自定义</span>
-          <span v-else class="tag tagOff">预置</span>
-          <span class="prefSpacer"></span>
-          <button
-            v-if="card.customized"
-            class="ghostBtn"
-            :disabled="prefSavingKey === prefKey(card)"
-            @click="resetPrefCard(card)"
-          >恢复预置</button>
-          <button
-            class="primaryBtn"
-            :disabled="!prefDirty[prefKey(card)] || prefSavingKey === prefKey(card)"
-            @click="savePrefCard(card)"
-          >{{ prefSavingKey === prefKey(card) ? '保存中...' : '保存' }}</button>
+  <section class="mx-auto max-w-5xl space-y-5">
+    <Card>
+      <CardContent class="p-5 sm:p-6">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <Badge>内置提示词</Badge>
+          <Badge :variant="info.source === 'db' ? 'default' : 'outline'">
+            {{ info.source === 'db' ? `SQLite · v${info.version}` : '环境/出厂配置' }}
+          </Badge>
+          <small class="text-xs text-muted-foreground">
+            最后修改：{{ formatTime(info.updatedAt) }}
+            <template v-if="info.operator"> · 操作人：{{ info.operator }}</template>
+          </small>
         </div>
-        <textarea v-model="card.draft" rows="3" spellcheck="false" @input="markPrefDirty(card)"></textarea>
-        <small class="mutedText prefPresetLine">预置：{{ card.preset }}</small>
-      </div>
-    </div>
-    <p v-if="prefNotice" class="okText">{{ prefNotice }}</p>
-    <p v-if="prefError" class="dangerText">{{ prefError }}</p>
+        <p class="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+          修改保存后无需重启，下一个新聊天立即使用最新提示词；生成进行中的请求沿用开始时的版本。
+          用户自己的「回答长度 / 回答风格 / 输出格式」会叠加在这段提示词之后，互不冲突。
+        </p>
 
-    <h3 class="historyTitle">版本历史（最近 50 条）</h3>
-    <div v-if="revisions.length === 0" class="mutedText emptyHistory">
-      还没有保存过版本——当前展示的是环境/出厂配置的内容。
-    </div>
-    <div v-for="item in revisions" :key="item.version" class="revisionCard">
-      <div class="revisionHead">
-        <span class="revisionVersion">v{{ item.version }}</span>
-        <span v-if="item.version === info.version" class="tag tagActive">当前生效</span>
-        <small class="mutedText">{{ formatTime(item.createdAt) }} · {{ item.operator }}</small>
-        <span class="revisionSpacer"></span>
-        <button class="ghostBtn" @click="restore(item)">恢复此版本</button>
-      </div>
-      <p class="revisionPreview">{{ preview(item.content) }}</p>
-    </div>
+        <div class="mt-4 grid gap-3">
+          <Textarea v-model="draft" rows="12" spellcheck="false" placeholder="输入系统内置提示词…" class="min-h-64 font-mono text-sm" />
+          <div class="flex flex-wrap items-center gap-2.5">
+            <span class="text-xs text-muted-foreground">{{ draftBytes }} / 20000 字节</span>
+            <span class="flex-1"></span>
+            <Button v-if="dirty" variant="ghost" class="min-h-9" @click="draft = info.content">放弃修改</Button>
+            <Button class="min-h-9" :disabled="!dirty || saving" @click="save">
+              <Save class="size-4" />
+              {{ saving ? '保存中...' : '保存并生效' }}
+            </Button>
+          </div>
+          <Alert v-if="errorText" variant="destructive">{{ errorText }}</Alert>
+          <p v-if="noticeText" class="m-0 text-[13px] text-primary">{{ noticeText }}</p>
+          <p v-if="loading" class="m-0 text-[13px] text-muted-foreground">加载中...</p>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 偏好提示词卡片 -->
+    <Card>
+      <CardContent class="p-5 sm:p-6">
+        <h3 class="flex items-center gap-2 text-[15px] font-semibold text-card-foreground">
+          <SlidersHorizontal class="size-4 text-primary" />
+          偏好提示词卡片
+        </h3>
+        <p class="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          用户在聊天里选择「回答长度 / 回答风格 / 输出格式」后，实际发给 AI 的指令 =
+          上方基础内置 Prompt + 对应的三张卡片文案（按长度 → 风格 → 格式顺序拼接）。
+          卡片已预置默认文案，修改保存后立即生效，无需重启；进行中的请求保持开始时的版本。
+        </p>
+
+        <p v-if="prefLoading" class="mt-3 text-[13px] text-muted-foreground">加载中...</p>
+
+        <div v-for="group in prefGroups" :key="group.dimension" class="mt-5">
+          <h4 class="mb-2.5 text-sm font-semibold text-muted-foreground">{{ group.title }}</h4>
+          <div class="grid gap-3">
+            <div v-for="card in group.cards" :key="prefKey(card)" class="grid gap-2 rounded-xl border border-border bg-muted/40 p-3.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[13px] font-semibold text-foreground">{{ card.label }}</span>
+                <Badge v-if="card.customized">已自定义</Badge>
+                <Badge v-else variant="outline">预置</Badge>
+                <span class="flex-1"></span>
+                <Button
+                  v-if="card.customized"
+                  variant="ghost"
+                  size="sm"
+                  class="text-muted-foreground"
+                  :disabled="prefSavingKey === prefKey(card)"
+                  @click="pendingResetCard = card"
+                >
+                  <RotateCcw class="size-3.5" />
+                  恢复预置
+                </Button>
+                <Button
+                  size="sm"
+                  :disabled="!prefDirty[prefKey(card)] || prefSavingKey === prefKey(card)"
+                  @click="savePrefCard(card)"
+                >
+                  {{ prefSavingKey === prefKey(card) ? '保存中...' : '保存' }}
+                </Button>
+              </div>
+              <Textarea v-model="card.draft" rows="3" spellcheck="false" class="min-h-20 bg-card/70 font-mono text-[13px]" @input="markPrefDirty(card)" />
+              <small class="text-xs leading-relaxed text-faint">预置：{{ card.preset }}</small>
+            </div>
+          </div>
+        </div>
+
+        <Alert v-if="prefError" variant="destructive" class="mt-3">{{ prefError }}</Alert>
+        <p v-if="prefNotice" class="mt-3 mb-0 text-[13px] text-primary">{{ prefNotice }}</p>
+      </CardContent>
+    </Card>
+
+    <!-- 版本历史 -->
+    <Card>
+      <CardContent class="p-5 sm:p-6">
+        <h3 class="flex items-center gap-2 text-[15px] font-semibold text-card-foreground">
+          <History class="size-4 text-primary" />
+          版本历史（最近 50 条）
+        </h3>
+        <p v-if="revisions.length === 0" class="mt-3 text-[13px] text-muted-foreground">
+          还没有保存过版本——当前展示的是环境/出厂配置的内容。
+        </p>
+        <div class="mt-4 grid gap-2.5">
+          <div v-for="item in revisions" :key="item.version" class="rounded-xl border border-border bg-muted/40 p-3.5">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <span class="text-sm font-bold text-foreground">v{{ item.version }}</span>
+              <Badge v-if="item.version === info.version">当前生效</Badge>
+              <small class="text-xs text-muted-foreground">{{ formatTime(item.createdAt) }} · {{ item.operator }}</small>
+              <span class="flex-1"></span>
+              <Button variant="outline" size="sm" class="min-h-9" @click="pendingRestoreRevision = item">恢复此版本</Button>
+            </div>
+            <p class="mb-0 mt-2 text-[13px] break-words text-muted-foreground" style="overflow-wrap:anywhere">{{ preview(item.content) }}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 恢复版本确认 -->
+    <AlertDialog :open="pendingRestoreRevision !== null" @update:open="(v) => { if (!v) pendingRestoreRevision = null }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>恢复到 v{{ pendingRestoreRevision?.version }}？</AlertDialogTitle>
+          <AlertDialogDescription>将以其内容创建一个新版本（历史保留，可随时再恢复）。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction @click="confirmRestoreRevision">恢复</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- 恢复预置确认 -->
+    <AlertDialog :open="pendingResetCard !== null" @update:open="(v) => { if (!v) pendingResetCard = null }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>恢复预置文案？</AlertDialogTitle>
+          <AlertDialogDescription>把「{{ pendingResetCard?.label }}」恢复为系统预置文案，当前自定义内容将被移除。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction @click="confirmResetCard">恢复预置</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </section>
 </template>
-
-.prefCardGroup {
-  margin-top: 14px;
-}
-
-.prefGroupTitle {
-  margin: 0 0 8px;
-  font-size: 14px;
-}
-
-.prefCard {
-  display: grid;
-  gap: 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.prefCard textarea {
-  width: 100%;
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 1.65;
-  font-family: Consolas, 'Courier New', monospace;
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--text-main);
-  resize: vertical;
-}
-
-.prefCardHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.prefCardLabel {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.prefSpacer {
-  flex: 1;
-}
-
-.prefPresetLine {
-  line-height: 1.5;
-}
-
-[data-theme='dark'] .prefCard,
-[data-theme='dark'] .prefCard textarea {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-<style scoped>
-.panel {
-  padding: 20px;
-}
-
-.promptPanel .sectionTitle {
-  margin: 14px 0 14px;
-}
-
-.metaRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.promptHint {
-  margin: 10px 0 0;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.tag {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.tagActive {
-  background: rgba(63, 125, 78, 0.12);
-  color: #3f7d4e;
-}
-
-.tagOff {
-  background: rgba(148, 163, 184, 0.16);
-  color: var(--text-soft);
-}
-
-.editorBox {
-  margin-top: 14px;
-  display: grid;
-  gap: 10px;
-}
-
-.editorBox textarea {
-  width: 100%;
-  border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  padding: 14px;
-  font-size: 14px;
-  line-height: 1.7;
-  font-family: Consolas, 'Courier New', monospace;
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--text-main);
-  resize: vertical;
-}
-
-[data-theme='dark'] .editorBox textarea {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.editorActions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.editorSpacer,
-.revisionSpacer {
-  flex: 1;
-}
-
-.okText {
-  color: #3f7d4e;
-  font-size: 13px;
-  margin: 0;
-}
-
-.dangerText {
-  color: var(--danger, #c65d4b);
-  font-size: 13px;
-  margin: 0;
-}
-
-.historyTitle {
-  margin: 22px 0 12px;
-  font-size: 16px;
-  color: var(--text-title);
-}
-
-.emptyHistory {
-  font-size: 13px;
-}
-
-.revisionCard {
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.4);
-  padding: 12px 14px;
-  margin-bottom: 10px;
-}
-
-[data-theme='dark'] .revisionCard {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.revisionHead {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.revisionVersion {
-  font-weight: 800;
-  color: var(--text-title);
-}
-
-.revisionPreview {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: var(--text-soft);
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 640px) {
-  .panel {
-    padding: 12px;
-  }
-
-  .editorActions {
-    flex-wrap: wrap;
-  }
-
-  .revisionHead {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .revisionSpacer {
-    display: none;
-  }
-
-  .revisionHead .ghostBtn {
-    width: 100%;
-  }
-}
-</style>
