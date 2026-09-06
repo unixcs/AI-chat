@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"ai-chat-backend/internal/model"
 )
@@ -45,8 +46,12 @@ func (s *Store) GetRedeemCodeByID(id string) (*model.RedeemCode, error) {
 	return c, err
 }
 
-// Redeem consumes a code and extends membership atomically.
-func (s *Store) Redeem(codeID, code, userID, phone, beforeExpire, afterExpire string) error {
+// Redeem consumes a code and extends membership atomically. The expiry
+// calculation happens INSIDE the write transaction: the no-op user-row touch
+// claims SQLite's write lock first, so concurrent redeems of different codes
+// by the same user serialize instead of read-modify-write over each other
+// (which silently dropped paid months).
+func (s *Store) Redeem(codeID, code, userID, phone string, durationMonths int) error {
 	return s.inTx(func(tx *sql.Tx) error {
 		now := Now()
 		res, err := tx.Exec(`UPDATE redeemCodes SET status = 'used', usedAt = ?, usedByUserId = ? WHERE id = ? AND status = 'unused'`, now, userID, codeID)
@@ -56,11 +61,24 @@ func (s *Store) Redeem(codeID, code, userID, phone, beforeExpire, afterExpire st
 		if n, _ := res.RowsAffected(); n == 0 {
 			return errors.New("code already used")
 		}
-		if _, err := tx.Exec(`UPDATE users SET memberExpireAt = ? WHERE id = ?`, afterExpire, userID); err != nil {
+		// Claim the write lock, then read the freshest committed expiry.
+		if _, err := tx.Exec(`UPDATE users SET lastLoginAt = lastLoginAt WHERE id = ?`, userID); err != nil {
+			return err
+		}
+		var current sql.NullString
+		if err := tx.QueryRow(`SELECT memberExpireAt FROM users WHERE id = ?`, userID).Scan(&current); err != nil {
+			return err
+		}
+		base := now
+		if t := TimeValue(current.String); t.After(time.Now()) {
+			base = current.String
+		}
+		after := AddMonths(base, durationMonths)
+		if _, err := tx.Exec(`UPDATE users SET memberExpireAt = ? WHERE id = ?`, after, userID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO redeemRecords (id, userId, phone, code, activatedAt, beforeExpireAt, afterExpireAt) VALUES (?,?,?,?,?,?,?)`,
-			NewID(), userID, phone, code, now, nilIfEmpty(beforeExpire), afterExpire); err != nil {
+			NewID(), userID, phone, code, now, nilIfEmpty(current.String), after); err != nil {
 			return err
 		}
 		return nil

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 
 	"ai-chat-backend/internal/ai"
 	"ai-chat-backend/internal/model"
@@ -109,45 +110,38 @@ func (a *API) handleStream(w http.ResponseWriter, r *http.Request) {
 	_ = user
 	_ = conv
 
-	clientGone := r.Context().Done()
-	streamErrCh := make(chan error, 1)
-
+	var mu sync.Mutex
 	var assistantText string
 	done := make(chan struct{})
 
+	// The stream goroutine owns ALL SSE writes; the handler returns only after
+	// it finishes (client cancel propagates through ctx and the router exits
+	// promptly), so writes never race the http server tearing down the response.
 	go func() {
 		defer close(done)
-		result, merr := a.Router.Stream(r.Context(), ai.ChatRequest{Messages: messages}, func(delta string) {
+		_, merr := a.Router.Stream(r.Context(), ai.ChatRequest{Messages: messages}, func(delta string) {
+			mu.Lock()
 			assistantText += delta
+			mu.Unlock()
 			sseWrite(flusher, w, mustJSON(map[string]any{"delta": delta}))
 		}, nil)
 
-		if merr != nil {
-			if clientHasContent(assistantText) && r.Context().Err() != nil {
-				// client cancelled: nothing more to send
-				return
-			}
-			if r.Context().Err() == nil {
-				code, message := sseErrorFor(merr)
-				sseWrite(flusher, w, mustJSON(map[string]any{"code": code, "error": message}))
-			}
-			streamErrCh <- merr
-			return
+		if merr != nil && r.Context().Err() == nil {
+			code, message := sseErrorFor(merr)
+			sseWrite(flusher, w, mustJSON(map[string]any{"code": code, "error": message}))
 		}
-		_ = result
 	}()
 
-	select {
-	case <-done:
-	case <-clientGone:
-	}
+	<-done
 
-	// Persist semantics copied from the Node catch/success split: partial
-	// content is always saved; the placeholder is ONLY for client-initiated
-	// aborts with zero content. An upstream failure with a healthy client
-	// persists nothing (Node: catch branch has no insertMessage).
-	if assistantText != "" {
-		a.Svc.PersistReply(conversationID, assistantText)
+	// Persist semantics (design D4.5): partial content is always saved; the
+	// placeholder is ONLY for client-initiated aborts with zero content. An
+	// upstream failure with a healthy client persists nothing.
+	mu.Lock()
+	text := assistantText
+	mu.Unlock()
+	if text != "" {
+		a.Svc.PersistReply(conversationID, text)
 	} else if r.Context().Err() != nil {
 		a.Svc.PersistReply(conversationID, "模型输出已中断。")
 	}
@@ -157,8 +151,6 @@ func (a *API) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	sseRaw(flusher, w, "data: [DONE]\n\n")
 }
-
-func clientHasContent(s string) bool { return s != "" }
 
 // sseErrorFor mirrors the Node backend's SSE error mapping verbatim
 // (backend/server.js catch block) so the frontend behaves identically.

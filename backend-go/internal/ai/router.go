@@ -536,6 +536,11 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 				// content had already started flowing.
 				return nil, &ModelError{Code: "MODEL_TIMEOUT", Message: "模型响应超时，请重试"}
 			}
+			if errors.Is(err, io.EOF) {
+				// Upstream closed the stream: a clean end for our purposes —
+				// Node treated EOF exactly the same (no error surfaced).
+				break
+			}
 			if gotFirstToken {
 				// Upstream died mid-stream; the client already has content.
 				return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型响应中断"}
@@ -551,6 +556,7 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		if debugAI() {
 			fmt.Printf("[ai-debug] entry=%s line=%q\n", entry.Name, line)
 		}
+		data = strings.TrimPrefix(data, "\ufeff") // hostile upstream BOM
 		if data == "[DONE]" {
 			break
 		}
@@ -558,8 +564,8 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		var chunk struct {
 			Choices []struct {
 				Delta struct {
-					Content          string `json:"content"`
-					ReasoningContent string `json:"reasoning_content"`
+					Content          json.RawMessage `json:"content"`
+					ReasoningContent json.RawMessage `json:"reasoning_content"`
 				} `json:"delta"`
 			} `json:"choices"`
 		}
@@ -570,8 +576,8 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 			continue
 		}
 		// reasoning_content is billed upstream but never shown; forward only
-		// visible content (same policy as the Node backend).
-		delta := chunk.Choices[0].Delta.Content
+		// visible content. Numbers render like Node's coercion ("123").
+		delta := rawToString(chunk.Choices[0].Delta.Content)
 		if delta == "" {
 			continue
 		}
@@ -588,10 +594,8 @@ func (r *Router) streamEntry(ctx context.Context, entry config.ProviderEntry, re
 		}
 	}
 
-	if !gotFirstToken {
-		return nil, &ModelError{Code: "MODEL_UPSTREAM_ERROR", Message: "模型返回空响应"}
-	}
-
+	// An empty reply (only [DONE], bare EOF, or all-empty deltas) ends the
+	// stream cleanly — Node did the same instead of surfacing an error.
 	return &StreamResult{
 		EntryName:    entry.Name,
 		Model:        entry.Model,
@@ -619,6 +623,23 @@ func readLine(reader *bufio.Reader) (string, error) {
 		}
 		return sb.String(), err
 	}
+}
+
+// rawToString renders a delta content JSON value the way Node's string
+// coercion did: JSON strings unescape; numbers become their literal text.
+func rawToString(raw json.RawMessage) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return ""
+	}
+	if trimmed[0] == '"' {
+		var out string
+		if err := json.Unmarshal(trimmed, &out); err != nil {
+			return ""
+		}
+		return out
+	}
+	return string(trimmed)
 }
 
 func truncate(s string, n int) string {

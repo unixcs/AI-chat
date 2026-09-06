@@ -143,18 +143,25 @@ func (s *Service) insertUserMessage(c *model.Conversation, content string) *Serv
 }
 
 // PersistReply stores the assistant reply (or the partial text on abort) and
-// touches the conversation. bestEffort: DB failure must not break the stream.
+// touches the conversation. If the conversation was deleted while the stream
+// was in flight, the reply is dropped instead of becoming an orphan row.
+// bestEffort: DB failure must not break the stream, but it IS logged.
 func (s *Service) PersistReply(conversationID, content string) {
 	if content == "" {
 		content = "模型输出已中断。"
 	}
-	_ = s.Store.InsertMessage(&model.Message{
+	if _, err := s.Store.GetConversation(conversationID); err != nil {
+		return // deleted mid-stream
+	}
+	if err := s.Store.InsertMessage(&model.Message{
 		ID:             store.NewID(),
 		ConversationID: conversationID,
 		Role:           "assistant",
 		Content:        content,
 		CreatedAt:      store.Now(),
-	})
+	}); err != nil {
+		println("[persist] assistant reply insert failed:", err.Error())
+	}
 	_ = s.Store.TouchConversation(conversationID)
 }
 

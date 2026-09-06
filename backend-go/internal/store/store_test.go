@@ -1,9 +1,11 @@
 package store
 
 import (
-	"sync"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 func openTest(t *testing.T) *Store {
@@ -74,9 +76,8 @@ func TestRedeemFlow(t *testing.T) {
 		t.Fatalf("code lookup: %v %+v", err, got)
 	}
 
-	before := ""
 	after := AddMonths(Now(), 1)
-	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", before, after); rerr != nil {
+	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", 1); rerr != nil {
 		t.Fatalf("redeem: %v", rerr)
 	}
 	user, _ := s.GetUserByID("u1")
@@ -91,7 +92,7 @@ func TestRedeemFlow(t *testing.T) {
 		t.Fatalf("redeem record must carry the code, got %q", records[0].Code)
 	}
 	// second redeem of same code must fail
-	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", before, after); rerr == nil {
+	if rerr := s.Redeem("c1", "VIP-TEST-000001", "u1", "13800000001", 1); rerr == nil {
 		t.Fatal("double redeem must fail")
 	}
 }
@@ -178,7 +179,7 @@ func TestRedeemConcurrentDoubleSpend(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.Redeem("c1", "VIP-TEST-CONCURRENT", "u1", "13800000001", "", AddMonths(Now(), 1)); err == nil {
+			if err := s.Redeem("c1", "VIP-TEST-CONCURRENT", "u1", "13800000001", 1); err == nil {
 				winners <- struct{}{}
 			}
 		}()
@@ -195,5 +196,34 @@ func TestRedeemConcurrentDoubleSpend(t *testing.T) {
 	user, _ := s.GetUserByID("u1")
 	if user.MemberExpireAt == "" {
 		t.Fatal("winner must extend membership")
+	}
+}
+
+// P0-2 regression: concurrent redeems of DIFFERENT codes by the same user must
+// stack (serialized transactions), not lose months to read-modify-write races.
+func TestRedeemConcurrentStacking(t *testing.T) {
+	s := openTest(t)
+	hash, _ := HashPassword("secret1")
+	_ = s.CreateUser(userFixture("u1", "13800000001", hash))
+	const n = 5
+	for i := 0; i < n; i++ {
+		_ = s.InsertRedeemCode(redeemFixture(fmt.Sprintf("c%d", i), fmt.Sprintf("VIP-STACK-%04d", i), 1))
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := s.Redeem(fmt.Sprintf("c%d", i), fmt.Sprintf("VIP-STACK-%04d", i), "u1", "13800000001", 1); err != nil {
+				t.Errorf("redeem %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	user, _ := s.GetUserByID("u1")
+	elapsed := TimeValue(user.MemberExpireAt).Sub(time.Now())
+	days := elapsed.Hours() / 24
+	if days < 145 || days > 160 { // ~5 months
+		t.Fatalf("5 concurrent months must stack, got %.1f days (%s)", days, user.MemberExpireAt)
 	}
 }

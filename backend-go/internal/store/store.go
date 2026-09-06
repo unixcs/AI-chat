@@ -43,6 +43,7 @@ func Open(path string) (*Store, error) {
 	if err := s.seed(); err != nil {
 		return nil, err
 	}
+	s.sweepOrphans()
 	return s, nil
 }
 
@@ -74,6 +75,9 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId);`,
 		`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(userId);`,
 		`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);`,
+		// Best-effort hard constraint: fails silently on legacy DBs that
+		// already contain duplicate phones (those keep the old behavior).
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON users(phone);`,
 		`CREATE INDEX IF NOT EXISTS idx_read_ann_user ON announcementReads(announcementId, userId);`,
 	}
 	for _, stmt := range stmts {
@@ -112,6 +116,12 @@ func (s *Store) addUsersColumns() error {
 		}
 	}
 	return nil
+}
+
+// sweepOrphans removes messages whose conversation no longer exists (they can
+// only originate from legacy data or crashes; the live path now drops them).
+func (s *Store) sweepOrphans() {
+	_, _ = s.DB.Exec(`DELETE FROM messages WHERE conversationId NOT IN (SELECT id FROM conversations)`)
 }
 
 func (s *Store) seed() error {

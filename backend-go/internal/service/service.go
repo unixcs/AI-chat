@@ -142,13 +142,6 @@ func (s *Service) Register(phone, nickname, password string) *ServiceError {
 	if !s.RegistrationOpen() {
 		return fail(403, "当前已关闭注册")
 	}
-	exists, err := s.Store.PhoneExists(phone)
-	if err != nil {
-		return fail(500, "服务器繁忙")
-	}
-	if exists {
-		return fail(400, "手机号已注册")
-	}
 	hash, err := store.HashPassword(password)
 	if err != nil {
 		return fail(500, "服务器繁忙")
@@ -164,7 +157,12 @@ func (s *Service) Register(phone, nickname, password string) *ServiceError {
 		CreatedAt:    now,
 		LastLoginAt:  now,
 	}
+	// Insert-first: the UNIQUE index on users.phone makes the duplicate check
+	// atomic, so concurrent registrations cannot create twin accounts.
 	if err := s.Store.CreateUser(u); err != nil {
+		if store.IsUniqueViolation(err) {
+			return fail(400, "手机号已注册")
+		}
 		return fail(500, "服务器繁忙")
 	}
 	return nil
@@ -286,15 +284,7 @@ func (s *Service) Redeem(userID, code string) (*model.User, *ServiceError) {
 		return nil, fail(400, "兑换码已失效或已使用")
 	}
 
-	activatedAt := store.Now()
-	before := user.MemberExpireAt
-	base := activatedAt
-	if t := store.TimeValue(before); t.After(time.Now()) {
-		base = before
-	}
-	after := store.AddMonths(base, redeemCode.DurationMonths)
-
-	if serr := s.Store.Redeem(redeemCode.ID, redeemCode.Code, userID, user.Phone, before, after); serr != nil {
+	if serr := s.Store.Redeem(redeemCode.ID, redeemCode.Code, userID, user.Phone, redeemCode.DurationMonths); serr != nil {
 		return nil, fail(400, "兑换码已失效或已使用")
 	}
 	updated, err := s.Store.GetUserByID(userID)

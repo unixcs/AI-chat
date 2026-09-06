@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
 	"ai-chat-backend/internal/model"
 )
@@ -53,6 +54,12 @@ func (s *Store) GetAdminByUsername(username string) (*model.User, error) {
 		return nil, ErrNotFound
 	}
 	return u, err
+}
+
+// IsUniqueViolation reports whether err is a SQLite UNIQUE constraint failure
+// (used to turn concurrent duplicate inserts into a clean 400).
+func IsUniqueViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
 func (s *Store) CreateUser(u *model.User) error {

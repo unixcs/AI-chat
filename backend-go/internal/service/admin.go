@@ -345,6 +345,11 @@ func (s *Service) AdminConversations(page, pageSize int, phone, keyword, search 
 }
 
 func (s *Service) AdminConversationMessages(conversationID string) ([]model.Message, *ServiceError) {
+	// Deleted (or unknown) conversations expose no messages — this also closes
+	// the orphan-row leak from a delete racing an in-flight stream.
+	if _, err := s.Store.GetConversation(conversationID); err != nil {
+		return nil, fail(404, "会话不存在")
+	}
 	msgs, err := s.Store.GetMessages(conversationID)
 	if err != nil {
 		return nil, fail(500, "服务器繁忙")
