@@ -20,101 +20,50 @@ onMounted(async () => {
   const { data } = await getAdminDashboard()
   metrics.value = data.data
 })
+
+// ---------- 视图层胶水（仅重写模板新增，业务逻辑未动） ----------
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import { Crown, Gift, LayoutDashboard, MessagesSquare, Users } from 'lucide-vue-next'
+
+// 旧版按 tone 区分底色，映射为 tailwind 语义类（视图层代理）
+const toneMeta = {
+  soft: { icon: Users, cardClass: '', iconClass: 'bg-primary/10 text-primary' },
+  accent: { icon: Crown, cardClass: 'border-primary/25 bg-primary/5', iconClass: 'bg-primary/15 text-primary' },
+  warm: { icon: Gift, cardClass: 'border-warning/30 bg-warning/10', iconClass: 'bg-warning/15 text-warning' },
+  deep: { icon: MessagesSquare, cardClass: 'border-info/30 bg-info/10', iconClass: 'bg-info/15 text-info' }
+}
+const toneOf = (tone) => toneMeta[tone] || toneMeta.soft
 </script>
 
 <template>
-  <section class="dashboardPage">
-    <article class="dashboardHero card panelShell">
-      <div>
-        <span class="sectionLabel">Overview</span>
-        <h2 class="sectionTitle">后台控制台</h2>
-      </div>
-      <div class="heroStats mutedText">共 4 项核心指标</div>
-    </article>
+  <section class="mx-auto max-w-6xl space-y-4">
+    <Card>
+      <CardContent class="flex flex-wrap items-end justify-between gap-3 p-5 sm:p-6">
+        <div>
+          <small class="text-xs font-medium uppercase tracking-widest text-faint">Overview</small>
+          <h2 class="mt-1.5 flex items-center gap-2 text-lg font-semibold text-card-foreground">
+            <LayoutDashboard class="size-5 text-primary" />
+            后台控制台
+          </h2>
+        </div>
+        <p class="m-0 whitespace-nowrap text-[13px] text-muted-foreground">共 4 项核心指标</p>
+      </CardContent>
+    </Card>
 
-    <section class="dashboardGrid">
-      <article v-for="item in metricCards" :key="item.label" class="metricCard card panelShell" :class="item.tone">
-        <p>{{ item.label }}</p>
-        <h3>{{ item.value }}</h3>
-        <small>{{ item.hint }}</small>
-      </article>
-    </section>
+    <div class="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <Card v-for="item in metricCards" :key="item.label" :class="toneOf(item.tone).cardClass">
+        <CardContent class="grid gap-1.5 p-5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="m-0 text-[13px] text-muted-foreground">{{ item.label }}</p>
+            <span class="flex size-8 items-center justify-center rounded-lg" :class="toneOf(item.tone).iconClass">
+              <component :is="toneOf(item.tone).icon" class="size-4" />
+            </span>
+          </div>
+          <h3 class="m-0 text-3xl font-bold tabular-nums text-card-foreground sm:text-4xl">{{ item.value }}</h3>
+          <small class="text-xs text-faint">{{ item.hint }}</small>
+        </CardContent>
+      </Card>
+    </div>
   </section>
 </template>
-
-<style scoped>
-.dashboardPage {
-  display: grid;
-  gap: 16px;
-}
-
-.dashboardHero {
-  padding: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.dashboardHero .sectionTitle {
-  margin: 14px 0 0;
-}
-
-.heroStats {
-  white-space: nowrap;
-}
-
-.dashboardGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.metricCard {
-  padding: 22px;
-  display: grid;
-  gap: 10px;
-}
-
-.metricCard p,
-.metricCard small {
-  margin: 0;
-  color: var(--text-soft);
-}
-
-.metricCard h3 {
-  margin: 0;
-  font-size: clamp(30px, 3vw, 42px);
-  color: var(--text-title);
-}
-
-.metricCard.accent {
-  background: linear-gradient(180deg, rgba(246, 249, 252, 0.96) 0%, rgba(229, 236, 244, 0.86) 100%);
-}
-
-.metricCard.warm {
-  background: linear-gradient(180deg, rgba(252, 247, 240, 0.96) 0%, rgba(243, 231, 216, 0.82) 100%);
-}
-
-.metricCard.deep {
-  background: linear-gradient(180deg, rgba(242, 240, 236, 0.96) 0%, rgba(229, 226, 221, 0.86) 100%);
-}
-
-@media (max-width: 1024px) {
-  .dashboardGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .dashboardHero {
-    padding: 18px;
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .dashboardGrid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

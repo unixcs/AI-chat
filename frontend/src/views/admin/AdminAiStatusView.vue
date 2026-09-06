@@ -1,6 +1,17 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { getAdminAiStatus } from '../../api/admin'
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import Table from '@/components/ui/table/Table.vue'
+import TableHeader from '@/components/ui/table/TableHeader.vue'
+import TableBody from '@/components/ui/table/TableBody.vue'
+import TableRow from '@/components/ui/table/TableRow.vue'
+import TableHead from '@/components/ui/table/TableHead.vue'
+import TableCell from '@/components/ui/table/TableCell.vue'
+import { Activity, Snowflake, Zap } from 'lucide-vue-next'
 
 const status = ref(null)
 const errorText = ref('')
@@ -31,132 +42,78 @@ const modeLabel = (mode) => {
 </script>
 
 <template>
-  <section class="card panelShell panel aiStatusPanel">
-    <span class="sectionLabel">AI Status</span>
-    <h2 class="sectionTitle">AI 状态</h2>
+  <section class="mx-auto max-w-6xl space-y-4">
+    <Card>
+      <CardContent class="p-5 sm:p-6">
+        <h2 class="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+          <Activity class="size-5 text-primary" />
+          AI 状态
+        </h2>
 
-    <template v-if="status">
-      <div class="statsGrid">
-        <div class="statCard">
-          <span class="statLabel">运行模式</span>
-          <strong>{{ modeLabel(status.mode) }}</strong>
-        </div>
-        <div class="statCard">
-          <span class="statLabel">总请求</span>
-          <strong>{{ status.stats.totalRequests }}</strong>
-        </div>
-        <div class="statCard">
-          <span class="statLabel">免费池成功</span>
-          <strong>{{ status.stats.gatewaySuccess }}</strong>
-        </div>
-        <div class="statCard">
-          <span class="statLabel">官方兜底次数</span>
-          <strong>{{ status.stats.officialFallback }}</strong>
-        </div>
-        <div class="statCard">
-          <span class="statLabel">自动切换次数</span>
-          <strong>{{ status.stats.switches }}</strong>
-        </div>
-      </div>
+        <div v-if="status" class="mt-4">
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="rounded-xl border border-primary/25 bg-accent p-4">
+              <span class="text-xs text-muted-foreground">运行模式</span>
+              <strong class="mt-1 block text-sm font-semibold leading-snug text-foreground">{{ modeLabel(status.mode) }}</strong>
+            </div>
+            <div class="rounded-xl border border-border bg-muted/40 p-4">
+              <span class="text-xs text-muted-foreground">总请求</span>
+              <strong class="mt-1 block text-2xl font-bold tabular-nums text-foreground">{{ status.stats.totalRequests }}</strong>
+            </div>
+            <div class="rounded-xl border border-border bg-muted/40 p-4">
+              <span class="text-xs text-muted-foreground">免费池成功</span>
+              <strong class="mt-1 block text-2xl font-bold tabular-nums text-foreground">{{ status.stats.gatewaySuccess }}</strong>
+            </div>
+            <div class="rounded-xl border border-warning/30 bg-warning/10 p-4">
+              <span class="text-xs text-muted-foreground">官方兜底次数</span>
+              <strong class="mt-1 block text-2xl font-bold tabular-nums text-warning">{{ status.stats.officialFallback }}</strong>
+            </div>
+            <div class="rounded-xl border border-border bg-muted/40 p-4">
+              <span class="text-xs text-muted-foreground">自动切换次数</span>
+              <strong class="mt-1 block text-2xl font-bold tabular-nums text-foreground">{{ status.stats.switches }}</strong>
+            </div>
+          </div>
 
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>模型入口</th>
-              <th>模型</th>
-              <th>状态</th>
-              <th>成功</th>
-              <th>失败</th>
-              <th>超时</th>
-              <th>最近首字</th>
-              <th>冷却剩余</th>
-              <th>最近错误</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="m in status.models" :key="m.name">
-              <td>{{ m.name }}</td>
-              <td>{{ m.model }}</td>
-              <td>
-                <span class="tag" :class="m.available ? 'tagOk' : 'tagCool'">
-                  {{ m.available ? '可用' : `冷却中 ${m.cooldownRemainingSecs}s` }}
-                </span>
-              </td>
-              <td>{{ m.successes }}</td>
-              <td>{{ m.failures }}</td>
-              <td>{{ m.timeouts }}</td>
-              <td>{{ m.lastFirstTokenMs ? `${m.lastFirstTokenMs}ms` : '-' }}</td>
-              <td>{{ m.cooldownRemainingSecs ? `${m.cooldownRemainingSecs}s` : '-' }}</td>
-              <td class="errCell">{{ m.lastError || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
-    <p v-if="errorText" class="dangerText">{{ errorText }}</p>
+          <div class="mt-5 overflow-hidden rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>模型入口</TableHead>
+                  <TableHead>模型</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>成功</TableHead>
+                  <TableHead>失败</TableHead>
+                  <TableHead>超时</TableHead>
+                  <TableHead>最近首字</TableHead>
+                  <TableHead>冷却剩余</TableHead>
+                  <TableHead>最近错误</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="m in status.models" :key="m.name">
+                  <TableCell class="font-medium">{{ m.name }}</TableCell>
+                  <TableCell class="text-muted-foreground">{{ m.model }}</TableCell>
+                  <TableCell>
+                    <Badge :variant="m.available ? 'default' : 'destructive'" class="gap-1">
+                      <Zap v-if="m.available" class="size-3" />
+                      <Snowflake v-else class="size-3" />
+                      {{ m.available ? '可用' : `冷却中 ${m.cooldownRemainingSecs}s` }}
+                    </Badge>
+                  </TableCell>
+                  <TableCell class="tabular-nums">{{ m.successes }}</TableCell>
+                  <TableCell class="tabular-nums">{{ m.failures }}</TableCell>
+                  <TableCell class="tabular-nums">{{ m.timeouts }}</TableCell>
+                  <TableCell class="tabular-nums">{{ m.lastFirstTokenMs ? `${m.lastFirstTokenMs}ms` : '-' }}</TableCell>
+                  <TableCell class="tabular-nums">{{ m.cooldownRemainingSecs ? `${m.cooldownRemainingSecs}s` : '-' }}</TableCell>
+                  <TableCell class="max-w-56 text-xs break-all whitespace-normal text-muted-foreground">{{ m.lastError || '-' }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        <Alert v-if="errorText" variant="destructive" class="mt-3">{{ errorText }}</Alert>
+      </CardContent>
+    </Card>
   </section>
 </template>
-
-<style scoped>
-.panel {
-  padding: 20px;
-}
-
-.aiStatusPanel .sectionTitle {
-  margin: 14px 0 20px;
-}
-
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.statCard {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.4);
-}
-
-[data-theme='dark'] .statCard {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.statLabel {
-  font-size: 12px;
-  color: var(--text-soft);
-}
-
-.tag {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.tagOk {
-  background: rgba(63, 125, 78, 0.12);
-  color: #3f7d4e;
-}
-
-.tagCool {
-  background: rgba(198, 93, 75, 0.1);
-  color: var(--danger, #c65d4b);
-}
-
-.errCell {
-  max-width: 220px;
-  word-break: break-all;
-  font-size: 12px;
-}
-
-.dangerText {
-  color: var(--danger, #c65d4b);
-  font-size: 13px;
-}
-</style>

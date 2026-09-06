@@ -63,201 +63,109 @@ const prevPage = async () => {
   queryState.page -= 1
   await loadConversations()
 }
+
+// ================= 视图层胶水（不改动上方业务逻辑） =================
+import Button from '@/components/ui/button/Button.vue'
+import Card from '@/components/ui/card/Card.vue'
+import CardContent from '@/components/ui/card/CardContent.vue'
+import Input from '@/components/ui/input/Input.vue'
+import { ChevronLeft, ChevronRight, FileText, MessagesSquare, Search } from 'lucide-vue-next'
 </script>
 
 <template>
-  <section class="conversationPanel">
-    <article class="conversationHistoryCard" :class="['card', 'panelShell']">
-      <span class="sectionLabel">Conversations</span>
-      <h2 class="sectionTitle">会话列表</h2>
+  <section class="mx-auto max-w-6xl space-y-4">
+    <div class="grid items-start gap-4 md:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
+      <!-- 会话列表 -->
+      <Card>
+        <CardContent class="flex flex-col gap-3.5 p-5">
+          <h2 class="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+            <MessagesSquare class="size-5 text-primary" />
+            会话列表
+          </h2>
 
-      <div class="queryCluster">
-        <div class="toolbarRow">
-          <input v-model="queryState.phone" placeholder="按手机号筛选" />
-          <input v-model="queryState.keyword" placeholder="按标题筛选" />
-          <input v-model="queryState.search" placeholder="搜索手机号/标题/消息内容" />
-          <button class="ghostBtn" @click="queryState.page = 1; loadConversations()">查询</button>
-        </div>
-      </div>
+          <form class="grid gap-2.5" @submit.prevent="queryState.page = 1; loadConversations()">
+            <Input v-model="queryState.phone" placeholder="按手机号筛选" />
+            <Input v-model="queryState.keyword" placeholder="按标题筛选" />
+            <Input v-model="queryState.search" placeholder="搜索手机号/标题/消息内容" />
+            <Button type="submit" variant="outline">
+              <Search class="size-4" />
+              查询
+            </Button>
+          </form>
 
-      <div class="historyList">
-        <button
-          v-for="item in conversations"
-          :key="item.id"
-          class="historyItem"
-          :class="{ active: activeId === item.id }"
-          @click="loadDetail(item.id)"
-        >
-          <div>
-            <strong>{{ item.title }}</strong>
-            <p class="mutedText">{{ item.userPhone }}</p>
+          <div class="grid max-h-[60vh] content-start gap-2 overflow-y-auto md:max-h-[calc(100dvh-360px)] md:min-h-40">
+            <button
+              v-for="item in conversations"
+              :key="item.id"
+              type="button"
+              class="w-full cursor-pointer rounded-xl border p-3.5 text-left transition-colors duration-150"
+              :class="activeId === item.id
+                ? 'border-primary/40 bg-accent'
+                : 'border-border bg-card/60 hover:bg-accent/60'"
+              @click="loadDetail(item.id)"
+            >
+              <span class="block break-words text-sm font-semibold text-foreground">{{ item.title }}</span>
+              <span class="mt-1 flex items-center justify-between gap-2">
+                <span class="text-[13px] break-all text-muted-foreground">{{ item.userPhone }}</span>
+                <small class="shrink-0 text-xs text-faint">{{ formatTime(item.updatedAt) }}</small>
+              </span>
+            </button>
+            <p v-if="conversations.length === 0" class="py-6 text-center text-[13px] text-muted-foreground">没有符合条件的会话</p>
           </div>
-          <small>{{ formatTime(item.updatedAt) }}</small>
-        </button>
-        <p v-if="conversations.length === 0" class="mutedText emptyList">没有符合条件的会话</p>
-      </div>
 
-      <div class="pagerRow">
-        <button class="ghostBtn" @click="prevPage">上一页</button>
-        <span class="mutedText">第 {{ queryState.page }} 页 / 共 {{ maxPage }} 页</span>
-        <button class="ghostBtn" @click="nextPage">下一页</button>
-      </div>
-    </article>
+          <div class="flex flex-wrap items-center justify-end gap-2.5">
+            <Button variant="outline" size="sm" :disabled="queryState.page <= 1" @click="prevPage">
+              <ChevronLeft class="size-4" />
+              上一页
+            </Button>
+            <span class="text-[13px] text-muted-foreground">第 {{ queryState.page }} 页 / 共 {{ maxPage }} 页</span>
+            <Button variant="outline" size="sm" @click="nextPage">
+              下一页
+              <ChevronRight class="size-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-    <article class="transcriptPanel card panelShell">
-      <span class="sectionLabel">Transcript</span>
-      <h2 class="sectionTitle">对话详情</h2>
+      <!-- 对话详情 -->
+      <Card>
+        <CardContent class="flex flex-col gap-3.5 p-5">
+          <h2 class="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+            <FileText class="size-5 text-primary" />
+            对话详情
+          </h2>
 
-      <div class="msgList">
-        <article v-for="msg in detailMessages" :key="msg.id" class="transcriptBubble" :class="msg.role">
-          <header>
-            <strong>{{ msg.role }}</strong>
-            <span class="mutedText">{{ formatTime(msg.createdAt) }}</span>
-          </header>
-          <div v-if="msg.role === 'assistant'" class="markdownBody" v-html="renderAssistantContent(msg.content)" />
-          <p v-else>{{ msg.content }}</p>
-        </article>
-      </div>
-    </article>
+          <div class="grid max-h-[70vh] content-start gap-3 overflow-y-auto pr-1 md:max-h-[calc(100dvh-220px)] md:min-h-40">
+            <article
+              v-for="msg in detailMessages"
+              :key="msg.id"
+              class="rounded-2xl border p-4"
+              :class="msg.role === 'user'
+                ? 'border-primary/20 bg-accent text-accent-foreground'
+                : msg.role === 'system'
+                  ? 'border-border bg-muted text-muted-foreground'
+                  : 'border-border bg-card'"
+            >
+              <header class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <strong class="text-[13px] font-semibold tracking-wide">{{ msg.role }}</strong>
+                <span class="text-xs opacity-70">{{ formatTime(msg.createdAt) }}</span>
+              </header>
+              <div v-if="msg.role === 'assistant'" class="markdownBody" v-html="renderAssistantContent(msg.content)" />
+              <p v-else class="m-0 break-words whitespace-pre-wrap">{{ msg.content }}</p>
+            </article>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.conversationPanel {
-  display: grid;
-  grid-template-columns: minmax(380px, 430px) minmax(0, 1fr);
-  gap: 14px;
-}
-
-.conversationHistoryCard,
-.transcriptPanel {
-  padding: 20px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.conversationHistoryCard .sectionTitle,
-.transcriptPanel .sectionTitle {
-  margin: 14px 0 18px;
-}
-
-.queryCluster {
-  margin-bottom: 14px;
-  padding: 14px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.46);
-  border: 1px solid var(--line-soft);
-}
-
-[data-theme='dark'] .queryCluster {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.historyItem {
-  width: 100%;
-  border: 1px solid var(--line-soft);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.4);
-  margin-bottom: 10px;
-  padding: 14px 15px;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.historyList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.historyItem strong,
-.historyItem p,
-.historyItem small {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-[data-theme='dark'] .historyItem {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.historyItem:hover {
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-[data-theme='dark'] .historyItem:hover {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.historyItem.active {
-  border-color: rgba(95, 111, 133, 0.26);
-  background: rgba(95, 111, 133, 0.12);
-}
-
-[data-theme='dark'] .historyItem.active {
-  border-color: rgba(163, 178, 198, 0.18);
-  background: rgba(163, 178, 198, 0.12);
-}
-
-.msgList {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.transcriptBubble {
-  border: 1px solid var(--line-soft);
-  border-radius: 22px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: var(--shadow-soft);
-}
-
-.transcriptBubble header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.transcriptBubble.user {
-  background: rgba(95, 111, 133, 0.12);
-}
-
-.transcriptBubble.assistant {
-  background: rgba(255, 255, 255, 0.54);
-}
-
-[data-theme='dark'] .transcriptBubble.assistant {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.transcriptBubble.system {
-  background: rgba(243, 239, 233, 0.88);
-}
-
-[data-theme='dark'] .transcriptBubble.system {
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.transcriptBubble p {
-  margin: 0;
-  white-space: pre-wrap;
-  line-height: 1.7;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
+/* 助手消息为富文本 markdown，:deep() 样式无法用工具类表达（与 ChatView 同一套路） */
 .markdownBody {
-  line-height: 1.68;
+  font-size: 15px;
+  line-height: 1.7;
+  color: inherit;
   word-break: break-word;
 }
 
@@ -290,7 +198,7 @@ const prevPage = async () => {
 .markdownBody :deep(th),
 .markdownBody :deep(td) {
   padding: 8px 10px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
   white-space: normal;
@@ -299,7 +207,7 @@ const prevPage = async () => {
 }
 
 .markdownBody :deep(thead th) {
-  background: rgba(148, 163, 184, 0.1);
+  background: rgba(127, 145, 130, 0.1);
 }
 
 .markdownBody :deep(li + li) {
@@ -307,31 +215,23 @@ const prevPage = async () => {
 }
 
 .markdownBody :deep(a) {
-  color: var(--accent-strong);
+  color: var(--primary);
   text-decoration: underline;
 }
 
 .markdownBody :deep(code) {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
-  background: rgba(15, 23, 42, 0.08);
-  padding: 1px 4px;
+  background: rgba(127, 145, 130, 0.12);
+  padding: 1px 5px;
   border-radius: 6px;
-}
-
-[data-theme='dark'] .markdownBody :deep(code) {
-  background: rgba(6, 10, 16, 0.52);
 }
 
 .markdownBody :deep(pre) {
   overflow-x: auto;
   padding: 12px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.08);
-}
-
-[data-theme='dark'] .markdownBody :deep(pre) {
-  background: rgba(6, 10, 16, 0.52);
+  border-radius: 12px;
+  background: rgba(127, 145, 130, 0.12);
 }
 
 .markdownBody :deep(pre code) {
@@ -342,94 +242,7 @@ const prevPage = async () => {
 
 .markdownBody :deep(blockquote) {
   padding-left: 12px;
-  border-left: 3px solid rgba(95, 111, 133, 0.35);
-  color: var(--text-soft);
-}
-
-.emptyList {
-  text-align: center;
-  padding: 18px 0;
-  font-size: 13px;
-}
-
-@media (max-width: 980px) {
-  /* 手机端保持左右分栏：左列表右详情，各自内部滚动 */
-  .conversationPanel {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    gap: 10px;
-    align-items: start;
-  }
-
-  .conversationHistoryCard,
-  .transcriptPanel {
-    padding: 12px;
-    max-height: calc(100dvh - 170px);
-    overflow: hidden;
-  }
-
-  .conversationHistoryCard .sectionTitle,
-  .transcriptPanel .sectionTitle {
-    margin: 8px 0 10px;
-    font-size: 16px;
-  }
-
-  .queryCluster {
-    padding: 10px;
-    margin-bottom: 10px;
-  }
-
-  .queryCluster .toolbarRow {
-    gap: 6px;
-  }
-
-  .queryCluster input {
-    font-size: 13px;
-    padding: 8px 10px;
-  }
-
-  .historyItem {
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    border-radius: 14px;
-    margin-bottom: 8px;
-  }
-
-  .historyItem strong,
-  .historyItem p,
-  .historyItem small {
-    font-size: 12px;
-  }
-
-  .pagerRow {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .transcriptBubble {
-    padding: 10px 12px;
-    border-radius: 16px;
-    margin-bottom: 8px;
-  }
-
-  .transcriptBubble header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-}
-
-@media (max-width: 480px) {
-  .conversationHistoryCard,
-  .transcriptPanel {
-    padding: 10px 8px;
-  }
-
-  .historyItem strong,
-  .historyItem p,
-  .historyItem small,
-  .transcriptBubble p {
-    font-size: 12px;
-  }
+  border-left: 3px solid rgba(63, 125, 78, 0.4);
+  color: var(--muted-foreground);
 }
 </style>
