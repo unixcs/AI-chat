@@ -294,6 +294,19 @@ watch(inputValue, () => {
   syncComposerHeight()
 })
 
+// profile 加载晚于本组件挂载时，回填服务器端已存的回答模式（UI 不说谎）
+watch(() => authStore.profile, (p) => {
+  if (!p) {
+    return
+  }
+  if (p.answerLength) {
+    answerLength.value = p.answerLength
+  }
+  if (p.answerStyle) {
+    answerStyle.value = p.answerStyle
+  }
+})
+
 // 输出跟随时持续滚到底部；用户上滑后不打扰
 watch(lastMessageLength, async () => {
   if (chatStore.streaming && isNearBottom.value) {

@@ -58,6 +58,10 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           handler.Routes(),
 		ReadHeaderTimeout: 15 * time.Second,
+		ReadTimeout:       60 * time.Second, // kills slow-body drip attacks; SSE bodies are empty
+		IdleTimeout:       120 * time.Second,
+		// No WriteTimeout: SSE streams legitimately run for hours (nginx
+		// proxy_read_timeout is 3600s) and WriteTimeout would sever them.
 	}
 
 	go func() {

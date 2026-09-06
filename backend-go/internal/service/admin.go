@@ -177,6 +177,9 @@ func (s *Service) AdminResetPassword(id, newPassword, operator string) *ServiceE
 	if utf8.RuneCountInString(newPassword) < 6 {
 		return fail(400, "新密码至少 6 位")
 	}
+	if len(newPassword) > 72 {
+		return fail(400, "密码过长")
+	}
 	user, err := s.Store.GetUserByID(id)
 	if err != nil || user.Role != "user" {
 		return fail(404, "用户不存在")

@@ -136,9 +136,8 @@ func (a *API) handleCurrentAnnouncement(user *model.User, w http.ResponseWriter,
 }
 
 func (a *API) handleAckAnnouncement(user *model.User, w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := a.Svc.Store.AckAnnouncement(id, user.ID); err != nil {
-		failMsg(w, 500, "服务器繁忙")
+	if serr := a.Svc.AckAnnouncement(user.ID, r.PathValue("id")); serr != nil {
+		fail(w, serr)
 		return
 	}
 	ok(w, true)

@@ -133,6 +133,9 @@ func (s *Service) Register(phone, nickname, password string) *ServiceError {
 	if !phoneRe.MatchString(phone) {
 		return fail(400, "手机号格式不正确")
 	}
+	if len(password) > 72 {
+		return fail(400, "密码过长")
+	}
 	if strings.TrimSpace(nickname) == "" {
 		return fail(400, "昵称不能为空")
 	}
@@ -223,6 +226,9 @@ func (s *Service) ChangePassword(userID, oldPassword, newPassword string) *Servi
 	user, err := s.Store.GetUserByID(userID)
 	if err != nil {
 		return fail(404, "用户不存在")
+	}
+	if len(newPassword) > 72 {
+		return fail(400, "密码过长")
 	}
 	if !store.CheckPassword(user.PasswordHash, oldPassword) {
 		return fail(400, "旧密码错误")
