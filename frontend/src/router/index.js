@@ -17,6 +17,7 @@ import AdminRedeemRecordView from '../views/admin/AdminRedeemRecordView.vue'
 import AdminConversationView from '../views/admin/AdminConversationView.vue'
 import AdminAnnouncementView from '../views/admin/AdminAnnouncementView.vue'
 import AdminAiStatusView from '../views/admin/AdminAiStatusView.vue'
+import AdminPromptView from '../views/admin/AdminPromptView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
@@ -48,7 +49,8 @@ const routes = [
       { path: 'redeem-records', name: 'adminRedeemRecords', component: AdminRedeemRecordView },
       { path: 'conversations', name: 'adminConversations', component: AdminConversationView },
       { path: 'announcements', name: 'adminAnnouncements', component: AdminAnnouncementView },
-      { path: 'ai', name: 'adminAiStatus', component: AdminAiStatusView }
+      { path: 'ai', name: 'adminAiStatus', component: AdminAiStatusView },
+      { path: 'prompt', name: 'adminPrompt', component: AdminPromptView }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/' }

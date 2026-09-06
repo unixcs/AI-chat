@@ -94,6 +94,17 @@ type Setting struct {
 	Value string `json:"value"`
 }
 
+// PromptRevision is one append-only version of the admin-managed system
+// prompt. The effective prompt is the highest-version row; restoring an old
+// version creates a NEW row with that content (history stays linear).
+type PromptRevision struct {
+	ID        string `json:"id"`
+	Version   int64  `json:"version"`
+	Content   string `json:"content"`
+	Operator  string `json:"operator"`
+	CreatedAt string `json:"createdAt"`
+}
+
 // SafeUser is the projection returned by user-facing endpoints (never leaks hashes).
 func (u *User) SafeUser() map[string]any {
 	return map[string]any{

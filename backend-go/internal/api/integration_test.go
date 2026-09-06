@@ -11,7 +11,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"ai-chat-backend/internal/ai"
 	"ai-chat-backend/internal/config"
@@ -30,7 +32,14 @@ type env struct {
 
 func newEnv(t *testing.T, upstreamChunks []string) *env {
 	t.Helper()
-	upstream := fakeOpenAI(t, upstreamChunks)
+	upstream, _ := fakeOpenAICapture(t, upstreamChunks)
+	return newEnvOn(t, upstream)
+}
+
+// newEnvOn builds the test stack around a pre-built upstream server (used by
+// prompt tests that need to inspect captured request bodies).
+func newEnvOn(t *testing.T, upstream *httptest.Server) *env {
+	t.Helper()
 
 	cfg := &config.Config{
 		Port:                  "0",
@@ -70,11 +79,63 @@ func newEnv(t *testing.T, upstreamChunks []string) *env {
 	return &env{t: t, server: server, upstream: upstream, store: st, cfg: cfg, svc: svc}
 }
 
-func fakeOpenAI(t *testing.T, chunks []string) *httptest.Server {
+// upstreamCapture remembers the last chat-completions request body and can
+// hold back the first SSE byte (a closed gate means "proceed normally").
+type upstreamCapture struct {
+	mu       sync.Mutex
+	lastBody map[string]any
+	hold     chan struct{}
+}
+
+func (u *upstreamCapture) systemMessage() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	msgs, okv := u.lastBody["messages"].([]any)
+	if !okv || len(msgs) == 0 {
+		return ""
+	}
+	m0, okv := msgs[0].(map[string]any)
+	if !okv || m0["role"] != "system" {
+		return ""
+	}
+	content, _ := m0["content"].(string)
+	return content
+}
+
+// waitBody polls until the upstream has seen a request body (or timeout).
+func (u *upstreamCapture) waitBody(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		u.mu.Lock()
+		seen := u.lastBody != nil
+		u.mu.Unlock()
+		if seen {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func fakeOpenAICapture(t *testing.T, chunks []string) (*httptest.Server, *upstreamCapture) {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	cap := &upstreamCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		cap.mu.Lock()
+		cap.lastBody = body
+		gate := cap.hold
+		cap.mu.Unlock()
+
+		if gate != nil {
+			select {
+			case <-gate:
+			case <-r.Context().Done():
+				return
+			}
+		}
+
 		flusher := w.(http.Flusher)
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
@@ -86,6 +147,13 @@ func fakeOpenAI(t *testing.T, chunks []string) *httptest.Server {
 		fmt.Fprint(w, "data: [DONE]\n\n")
 		flusher.Flush()
 	}))
+	return srv, cap
+}
+
+func fakeOpenAI(t *testing.T, chunks []string) *httptest.Server {
+	t.Helper()
+	srv, _ := fakeOpenAICapture(t, chunks)
+	return srv
 }
 
 // ---------- minimal HTTP client helpers ----------

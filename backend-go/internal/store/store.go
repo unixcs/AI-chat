@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -71,6 +72,9 @@ func (s *Store) migrate() error {
 			createdAt TEXT, updatedAt TEXT);`,
 		`CREATE TABLE IF NOT EXISTS announcementReads (
 			id TEXT PRIMARY KEY, announcementId TEXT, userId TEXT, createdAt TEXT);`,
+		`CREATE TABLE IF NOT EXISTS promptRevisions (
+			id TEXT PRIMARY KEY, version INTEGER UNIQUE, content TEXT NOT NULL,
+			operator TEXT NOT NULL, createdAt TEXT NOT NULL);`,
 		`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId);`,
 		`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(userId);`,
@@ -190,6 +194,7 @@ func defaultMenus() []model.Menu {
 		{ID: NewID(), Name: "会话管理", Path: "/admin/conversations", MenuGroup: "业务管理"},
 		{ID: "menu_announcements_" + now, Name: "公告管理", Path: "/admin/announcements", MenuGroup: "业务管理"},
 		{ID: "menu_aistatus_" + now, Name: "AI 状态", Path: "/admin/ai", MenuGroup: "系统管理"},
+		{ID: "menu_prompt_" + now, Name: "提示词管理", Path: "/admin/prompt", MenuGroup: "系统管理"},
 	}
 }
 
@@ -204,6 +209,14 @@ func (s *Store) inTx(fn func(tx *sql.Tx) error) error {
 	}
 	return tx.Commit()
 }
+
+// promptVersionMu serializes prompt-version allocation. The transaction is
+// DEFERRED, so two concurrent read-MAX-then-INSERT transactions on different
+// pool connections could both see the same snapshot (the loser would hit
+// SQLITE_BUSY_SNAPSHOT, which busy_timeout does not retry). Single-process
+// deployment makes an in-process write mutex equivalent to BEGIN IMMEDIATE
+// and keeps the tx helpers untouched.
+var promptVersionMu sync.Mutex
 
 // ---------- ids & time (Node-compatible formats) ----------
 

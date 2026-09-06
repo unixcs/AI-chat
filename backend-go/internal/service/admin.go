@@ -470,3 +470,60 @@ func nilOrNil(s string) any {
 func (s *Service) LookupUserByPhone(phone string) (*model.User, error) {
 	return s.Store.GetUserByPhone(phone)
 }
+
+// BotRedeemCodeInfo summarizes one invite code for the Telegram admin:
+// unused / voided / used (redeemer, time, resulting expiry).
+func (s *Service) BotRedeemCodeInfo(code string) (string, *ServiceError) {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" {
+		return "", fail(400, "用法: /codeinfo <邀请码>")
+	}
+	c, err := s.Store.GetRedeemCodeByCode(code)
+	if err != nil {
+		return "", fail(404, "邀请码不存在")
+	}
+	switch c.Status {
+	case "unused":
+		return fmt.Sprintf("邀请码 %s\n状态: 未使用\n时长: %d 个月\n创建: %s", c.Code, c.DurationMonths, shortTime(c.CreatedAt)), nil
+	case "void":
+		return fmt.Sprintf("邀请码 %s\n状态: 已作废", c.Code), nil
+	}
+	line := fmt.Sprintf("邀请码 %s\n状态: 已使用\n时长: %d 个月", c.Code, c.DurationMonths)
+	if c.UsedAt != nil {
+		line += "\n兑换时间: " + shortTime(*c.UsedAt)
+	}
+	rec, err := s.Store.GetRedeemRecordByCode(c.Code)
+	if err != nil {
+		return line, nil // record missing (legacy data): degrade gracefully
+	}
+	line += fmt.Sprintf("\n兑换人: %s\n会员至: %s", rec.Phone, shortTime(rec.AfterExpireAt))
+	return line, nil
+}
+
+// BotRedeemRecords returns the latest n redemption records (capped at 20).
+func (s *Service) BotRedeemRecords(n int) ([]model.RedeemRecord, *ServiceError) {
+	if n <= 0 {
+		n = 5
+	}
+	if n > 20 {
+		n = 20
+	}
+	result, serr := s.AdminRedeemRecords(1, n, "", "", "")
+	if serr != nil {
+		return nil, serr
+	}
+	items, _ := result.Items.([]model.RedeemRecord)
+	return items, nil
+}
+
+// shortTime renders Node-compatible ISO stamps as "YYYY-MM-DD HH:mm" for
+// bot output; malformed stamps pass through untouched.
+func shortTime(iso string) string {
+	if t, err := time.Parse("2006-01-02T15:04:05.000Z07:00", iso); err == nil {
+		return t.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04")
+	}
+	if len(iso) >= 16 {
+		return iso[:16]
+	}
+	return iso
+}

@@ -114,6 +114,24 @@ export const getAdminAiStatus = () => {
   return http.get('/admin/ai/status', { headers: { needAdminAuth: true } })
 }
 
+// ---------- 内置提示词管理（SQLite 热配置 + 版本历史） ----------
+
+export const getAdminPrompt = () => {
+  return http.get('/admin/prompt', { headers: { needAdminAuth: true } })
+}
+
+export const updateAdminPrompt = (content) => {
+  return http.put('/admin/prompt', { content }, { headers: { needAdminAuth: true } })
+}
+
+export const getAdminPromptRevisions = () => {
+  return http.get('/admin/prompt/revisions', { headers: { needAdminAuth: true } })
+}
+
+export const restoreAdminPrompt = (version) => {
+  return http.post('/admin/prompt/restore', { version }, { headers: { needAdminAuth: true } })
+}
+
 export const getAdminSettings = () => {
   return http.get('/admin/settings', { headers: { needAdminAuth: true } })
 }

@@ -82,6 +82,28 @@ test('admin conversation view exposes the upgraded query rail and transcript sur
   assert.match(vue, /class="transcriptBubble"/)
 })
 
+test('admin prompt management page is routed, menu-wired, and API-connected', () => {
+  const viewVue = readProjectFile('src/views/admin/AdminPromptView.vue')
+  const router = readProjectFile('src/router/index.js')
+  const layoutVue = readProjectFile('src/views/admin/AdminLayout.vue')
+  const api = readProjectFile('src/api/admin.js')
+
+  // page: editor + versions + restore + save feedback
+  assert.match(viewVue, /内置提示词管理/)
+  assert.match(viewVue, /updateAdminPrompt\(draft\.value\)/)
+  assert.match(viewVue, /restoreAdminPrompt\(item\.version\)/)
+  assert.match(viewVue, /getAdminPromptRevisions/)
+
+  // route + hardcoded sidebar menu entry（评审 F1：侧栏菜单是硬编码数组）
+  assert.match(router, /path: 'prompt', name: 'adminPrompt'/)
+  assert.match(layoutVue, /\{ label: '提示词管理', path: '\/admin\/prompt' \}/)
+
+  // api client endpoints exist
+  assert.match(api, /http\.get\('\/admin\/prompt'/)
+  assert.match(api, /http\.put\('\/admin\/prompt'/)
+  assert.match(api, /http\.post\('\/admin\/prompt\/restore'/)
+})
+
 test('remaining admin list pages share upgraded section shells and dense panels', () => {
   const userVue = readProjectFile('src/views/admin/AdminUserView.vue')
   const memberVue = readProjectFile('src/views/admin/AdminMemberView.vue')

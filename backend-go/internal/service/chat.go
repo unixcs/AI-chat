@@ -165,10 +165,12 @@ func (s *Service) PersistReply(conversationID, content string) {
 	_ = s.Store.TouchConversation(conversationID)
 }
 
-// BuildSystemPrompt layers the base prompt with the user's answer-mode prefs.
+// BuildSystemPrompt layers the admin-managed base prompt (hot-reloaded from
+// SQLite; falls back to the startup config) with the user's answer-mode prefs.
+// Called once per chat request — a stream keeps the prompt it started with.
 // Preferences live at the session layer; the user's own message is never edited.
 func (s *Service) BuildSystemPrompt(user *model.User) string {
-	prompt := s.Cfg.SystemPrompt
+	prompt := s.EffectiveSystemPrompt()
 	if extra := answerModeSuffix(user.AnswerLength, user.AnswerStyle); extra != "" {
 		if prompt == "" {
 			prompt = s.Cfg.SystemPromptDefault

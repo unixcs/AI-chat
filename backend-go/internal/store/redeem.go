@@ -176,6 +176,25 @@ func (s *Store) CountRedeemRecordsOnDay(dayStart, dayEnd string) (int, error) {
 	return n, err
 }
 
+// GetRedeemRecordByCode returns the most recent redemption record of a code
+// (bot-facing single-code lookup).
+func (s *Store) GetRedeemRecordByCode(code string) (*model.RedeemRecord, error) {
+	var r model.RedeemRecord
+	var before, after sql.NullString
+	err := s.DB.QueryRow(`SELECT id, userId, phone, code, activatedAt, beforeExpireAt, afterExpireAt
+		FROM redeemRecords WHERE code = ? ORDER BY activatedAt DESC LIMIT 1`, code).
+		Scan(&r.ID, &r.UserID, &r.Phone, &r.Code, &r.ActivatedAt, &before, &after)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	r.BeforeExpireAt = before.String
+	r.AfterExpireAt = after.String
+	return &r, nil
+}
+
 func (s *Store) ListRedeemRecords(page, pageSize int, phone, start, end string) ([]model.RedeemRecord, int, error) {
 	where := "WHERE 1=1"
 	args := []any{}

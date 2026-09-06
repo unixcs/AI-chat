@@ -21,7 +21,8 @@ const menuGroups = [
       { label: '用户管理', path: '/admin/users' },
       { label: '角色管理', path: '/admin/roles' },
       { label: '菜单管理', path: '/admin/menus' },
-      { label: 'AI 状态', path: '/admin/ai' }
+      { label: 'AI 状态', path: '/admin/ai' },
+      { label: '提示词管理', path: '/admin/prompt' }
     ]
   },
   {

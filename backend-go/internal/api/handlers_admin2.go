@@ -103,3 +103,52 @@ func (a *API) handleAdminAIStatus(_ *model.User, w http.ResponseWriter, _ *http.
 		"stats":  a.Router.StatsSnapshot(),
 	})
 }
+
+// ---------- prompt (admin, hot-editable system prompt) ----------
+
+func (a *API) handleAdminGetPrompt(_ *model.User, w http.ResponseWriter, _ *http.Request) {
+	ok(w, a.Svc.AdminPromptInfo())
+}
+
+func (a *API) handleAdminUpdatePrompt(_ *model.User, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	info, serr := a.Svc.AdminUpdatePrompt(body.Content, "web-admin")
+	if serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, info)
+}
+
+func (a *API) handleAdminPromptRevisions(_ *model.User, w http.ResponseWriter, _ *http.Request) {
+	list, serr := a.Svc.AdminListPromptRevisions()
+	if serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, list)
+}
+
+func (a *API) handleAdminRestorePrompt(_ *model.User, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Version *int64 `json:"version"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if body.Version == nil {
+		failMsg(w, 400, "缺少 version")
+		return
+	}
+	info, serr := a.Svc.AdminRestorePrompt(*body.Version, "web-admin")
+	if serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, info)
+}
