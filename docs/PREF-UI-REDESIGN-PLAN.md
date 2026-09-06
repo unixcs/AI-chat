@@ -185,3 +185,19 @@
 | P3 | utf8.ValidString 在 JSON 入口不可达（json 已强转 U+FFFD） | 保留为直调防御 + 语义注释 | — |
 
 **遗留声明**：jsdom 无法证明 OS 剪贴板端到端（R12a 的核心教训），真实浏览器证据由 CDP 工装（/tmp 工装思路已固化进测试注释与本文档）提供；UI 重建（Part D）若触碰 ChatView 复制按钮，须复跑同款 CDP 验证。
+
+## §7 R12b 对抗审查结果（Part D，2026-09-06）
+
+**VERDICT: SOLID**（无 P0/P1）。审查由主会话顺序执行（两次子代理启动均被平台并发限制终止）。
+
+| 向量 | 结论 | 证据 |
+|---|---|---|
+| V1 脚本完整性（20 视图 diff pre-ui-redesign…HEAD） | PASS | 唯一的既有行删除 = 三处 `window.confirm` 守卫（AnnouncementView.remove / PromptView.restore+resetPrefCard），全部替换为 AlertDialog 确认流——Plan §3.3 声明的设计决定；其余 17 文件纯新增（import+视图层胶水）；LandingView 原本无 script（误报排除） |
+| V2 reka-ui 陷阱 | PASS | 全仓 0 个空字符串 SelectItem；Dialog/AlertDialog/Sheet/Popover/Select 的 Root↔Content 全部配对；ChatView PopoverContent 在 Root 内 |
+| V3 构建与测试门禁 | PASS | vite build 绿；node --test 72/72；后端五包 -race 全绿（Part D 零后端改动，cached 留档） |
+| V4 真机冒烟（Chromium CDP，vite preview） | PASS | 桌面 1280×800 + 移动 375×812 × 4 页面（/,/login,/register,/admin/login）：渲染正常、无横向溢出、0 页面错误（16/16）；暗色双机制实测（data-theme=dark ∧ html.dark ∧ body 深底）；登录表单假凭据 → axios 15s 超时 → 「登录失败，请检查账号信息」Alert 正常显示 |
+| V5 视觉一致性 | PASS | 新 scoped 样式 0 处引用旧雾感变量（ChatView chat-* 气泡变量为声明内例外）；触控目标 min-h-11 断言在回归锁内 |
+| V6 残留死区 | PASS | views 0 旧全局类/0 window.alert；App.vue 仅 +2（Toaster）；router/api/stores/markdown/chat-entry/admin-member-expire 与基线零 diff |
+
+体积门禁（gzip）：JS 201.54KB（基线 128.62，+72.92 ≤ +120 ✓）；CSS 10.70KB（基线 9.95，+0.75 ≤ +30 ✓）。
+冒烟工装备注：vite preview 的 /api 代理对离线后端会挂起到 axios 15s 超时（生产 nginx 立即 502），非产品缺陷。
