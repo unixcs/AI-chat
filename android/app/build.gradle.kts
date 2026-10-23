@@ -19,12 +19,8 @@ android {
         applicationId = "com.unixcs.aichat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.6.0"
-
-        // Dev endpoints always point at the yun1 test instance (8189).
-        // Phase 6 switches this single value to the production address.
-        buildConfigField("String", "API_BASE_URL", "\"http://121.41.206.32:8189\"")
+        versionCode = 7
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -39,7 +35,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Debug builds must never touch production: all development and
+            // smoke traffic stays on the yun1 test instance.
+            buildConfigField("String", "API_BASE_URL", "\"http://121.41.206.32:8189\"")
+        }
         release {
+            buildConfigField("String", "API_BASE_URL", "\"http://121.41.192.80:8181\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The backend currently serves plain HTTP on these fixed hosts. Cleartext
+     stays limited to them; everything else keeps the platform default. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- yun: production -->
+        <domain includeSubdomains="false">121.41.192.80</domain>
+        <!-- yun1: test only, used by debug builds -->
+        <domain includeSubdomains="false">121.41.206.32</domain>
+    </domain-config>
+</network-security-config>
