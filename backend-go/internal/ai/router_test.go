@@ -393,13 +393,16 @@ func TestFallbackExemptFromFirstTokenWatchdog(t *testing.T) {
 
 // R1 fix: client cancel must not poison health (no failures, no cooldowns,
 // no further entries tried) — stop-generation is not an upstream fault.
+// The first entry must be a *stalled* upstream: a refused connection fails
+// before the cancel lands and is a genuine upstream fault, not a cancel.
 func TestClientCancelNoHealthDamage(t *testing.T) {
-	dead := "http://127.0.0.1:1"
+	stalled := fakeUpstream(t, 2*time.Second, chunks, http.StatusOK)
+	defer stalled.Close()
 	healthy := fakeUpstream(t, 0, chunks, http.StatusOK)
 	defer healthy.Close()
 
 	pool := []config.ProviderEntry{
-		entry("dead", dead, false),
+		entry("stalled", stalled.URL, false),
 		entry("healthy", healthy.URL, false),
 		entry("official", healthy.URL, true),
 	}
@@ -408,12 +411,12 @@ func TestClientCancelNoHealthDamage(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(50 * time.Millisecond) // let the first (dead) attempt start
+		time.Sleep(50 * time.Millisecond) // let the first (stalled) attempt start
 		cancel()
 	}()
 	_, merr := r.Stream(ctx, ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, nil, nil)
-	if merr == nil {
-		t.Fatal("cancelled request must return an error")
+	if merr == nil || merr.Code != "MODEL_CLIENT_GONE" {
+		t.Fatalf("cancelled request must return MODEL_CLIENT_GONE, got %+v", merr)
 	}
 	for _, snap := range r.HealthSnapshot() {
 		if snap.Failures != 0 || snap.ConsecFails != 0 || snap.CooldownSecs != 0 {
