@@ -3,26 +3,44 @@ package com.unixcs.aichat.ui.screens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.unixcs.aichat.BuildConfig
+import com.unixcs.aichat.data.api.UserProfile
+import com.unixcs.aichat.ui.util.maskPhone
 
-// Phase 0 shell: Phase 4 adds the preference-visibility switch; Phase 5 adds
-// encrypted export/import; Phase 6 shows the production endpoint read-only.
+// Phase 1: account + logout. Phase 4 adds the preference-visibility switch;
+// Phase 5 adds encrypted export/import; Phase 6 shows the production endpoint.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    profile: UserProfile?,
+    onLogout: () -> Unit,
+    onBack: () -> Unit,
+) {
+    var confirmLogout by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -39,34 +57,76 @@ fun SettingsScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
-            Text(
-                text = "账户",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
+            SectionTitle("账户")
             ListItem(
                 headlineContent = { Text("当前账号") },
-                supportingContent = { Text("登录后显示脱敏手机号") },
+                supportingContent = {
+                    Text(
+                        profile?.phone?.takeIf { it.isNotBlank() }?.let(::maskPhone)
+                            ?: "未获取到账号信息",
+                    )
+                },
             )
             HorizontalDivider()
-            Text(
-                text = "关于",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
+            ListItem(
+                headlineContent = { Text("会员到期") },
+                supportingContent = {
+                    Text(profile?.memberExpireAt?.take(10)?.takeIf { it.isNotBlank() } ?: "未开通")
+                },
             )
+            OutlinedButton(
+                onClick = { confirmLogout = true },
+                modifier = Modifier.padding(vertical = 16.dp),
+            ) {
+                Text("退出登录", color = MaterialTheme.colorScheme.error)
+            }
+
+            SectionTitle("关于")
             ListItem(
                 headlineContent = { Text("服务器地址") },
-                supportingContent = { Text("开发期：http://121.41.206.32:8189") },
+                supportingContent = { Text(BuildConfig.API_BASE_URL) },
             )
             HorizontalDivider()
             ListItem(
                 headlineContent = { Text("版本") },
-                supportingContent = { Text("0.1.0 (1)") },
+                supportingContent = { Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
             )
         }
     }
+
+    if (confirmLogout) {
+        AlertDialog(
+            onDismissRequest = { confirmLogout = false },
+            title = { Text("退出登录") },
+            text = { Text("退出后需要重新输入密码登录。本地聊天记录不会删除。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmLogout = false
+                        onLogout()
+                    },
+                ) {
+                    Text("退出", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmLogout = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+    )
 }

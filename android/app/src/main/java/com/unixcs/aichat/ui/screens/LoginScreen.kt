@@ -1,14 +1,25 @@
 package com.unixcs.aichat.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -20,26 +31,45 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.unixcs.aichat.ui.login.LoginViewModel
 
-// Phase 0 shell: the fields and button are wired to navigation only.
-// Phase 1 replaces onLoggedIn with the real login call + DataStore session.
 @Composable
-fun LoginScreen(onLoggedIn: () -> Unit) {
-    var phone by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+fun LoginScreen(
+    viewModel: LoginViewModel,
+    notice: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    var passwordVisible by remember { mutableStateOf(false) }
+    var shownNotice by remember(notice) { mutableStateOf(notice) }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val error = ui.error ?: shownNotice
 
-    Scaffold { innerPadding ->
-        Column(
+    Scaffold(modifier = modifier) { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .imePadding(),
+            contentAlignment = Alignment.Center,
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 32.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
             Text(
                 text = "AI-chat",
                 style = MaterialTheme.typography.headlineLarge,
@@ -52,30 +82,91 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
             )
             Spacer(Modifier.height(32.dp))
             OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
+                value = ui.phone,
+                onValueChange = {
+                    shownNotice = null
+                    viewModel.onPhoneChange(it)
+                },
                 label = { Text("手机号") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                enabled = !ui.loading,
+                isError = error != null,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
+                value = ui.password,
+                onValueChange = {
+                    shownNotice = null
+                    viewModel.onPasswordChange(it)
+                },
                 label = { Text("密码") },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                enabled = !ui.loading,
+                isError = error != null,
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboard?.hide()
+                        viewModel.submit()
+                    },
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = onLoggedIn,
-                enabled = phone.isNotBlank() && password.isNotBlank(),
+                onClick = {
+                    keyboard?.hide()
+                    viewModel.submit()
+                },
+                enabled = ui.canSubmit && !ui.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("登录")
+                if (ui.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text("登录")
+                }
             }
         }
     }
