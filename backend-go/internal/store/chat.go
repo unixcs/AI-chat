@@ -57,6 +57,24 @@ func (s *Store) TouchConversation(id string) error {
 	return err
 }
 
+// RenameConversation stores a new title and bumps updatedAt so the history
+// list re-sorts. It returns the new timestamp for the API response.
+func (s *Store) RenameConversation(id, title string) (string, error) {
+	now := Now()
+	res, err := s.DB.Exec(`UPDATE conversations SET title = ?, updatedAt = ? WHERE id = ?`, title, now, id)
+	if err != nil {
+		return "", err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if n == 0 {
+		return "", ErrNotFound
+	}
+	return now, nil
+}
+
 // DeleteConversation removes the conversation and its messages atomically.
 func (s *Store) DeleteConversation(id string) error {
 	return s.inTx(func(tx *sql.Tx) error {

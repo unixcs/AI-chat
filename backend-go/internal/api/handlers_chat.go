@@ -44,6 +44,23 @@ func (a *API) handleDeleteConversation(user *model.User, w http.ResponseWriter, 
 	ok(w, true)
 }
 
+// handleRenameConversation updates only the title; the response carries the
+// refreshed conversation so the client can replace its cached copy.
+func (a *API) handleRenameConversation(user *model.User, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title string `json:"title"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	c, serr := a.Svc.RenameConversation(user.ID, r.PathValue("id"), body.Title)
+	if serr != nil {
+		fail(w, serr)
+		return
+	}
+	ok(w, c)
+}
+
 func (a *API) handleGetMessages(user *model.User, w http.ResponseWriter, r *http.Request) {
 	msgs, serr := a.Svc.GetMessages(user.ID, r.PathValue("id"))
 	if serr != nil {

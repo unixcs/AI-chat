@@ -183,6 +183,7 @@ func (a *API) Routes() http.Handler {
 	mux.HandleFunc("GET /api/chat/conversations", a.userAuth(a.handleListConversations))
 	mux.HandleFunc("POST /api/chat/conversations", a.userAuth(a.handleCreateConversation))
 	mux.HandleFunc("DELETE /api/chat/conversations/{id}", a.userAuth(a.handleDeleteConversation))
+	mux.HandleFunc("PUT /api/chat/conversations/{id}/title", a.userAuth(a.handleRenameConversation))
 	mux.HandleFunc("GET /api/chat/conversations/{id}/messages", a.userAuth(a.handleGetMessages))
 	mux.HandleFunc("POST /api/chat/conversations/{id}/messages", a.userAuth(a.handlePostMessage))
 	mux.HandleFunc("GET /api/chat/conversations/{id}/stream", a.handleStream)

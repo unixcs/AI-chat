@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ai-chat-backend/internal/ai"
 	"ai-chat-backend/internal/model"
@@ -69,6 +70,31 @@ func (s *Service) DeleteConversation(userID, conversationID string) *ServiceErro
 		return fail(500, "服务器繁忙")
 	}
 	return nil
+}
+
+const maxConversationTitleRunes = 50
+
+// RenameConversation changes a conversation title. Ownership is checked here
+// so a foreign ID is indistinguishable from a missing one (404).
+func (s *Service) RenameConversation(userID, conversationID, title string) (*model.Conversation, *ServiceError) {
+	c, err := s.Store.GetConversation(conversationID)
+	if err != nil || c.UserID != userID {
+		return nil, fail(404, "会话不存在")
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, fail(400, "标题不能为空")
+	}
+	if utf8.RuneCountInString(title) > maxConversationTitleRunes {
+		return nil, fail(400, "标题过长，最多 50 个字符")
+	}
+	updatedAt, err := s.Store.RenameConversation(conversationID, title)
+	if err != nil {
+		return nil, fail(500, "服务器繁忙")
+	}
+	c.Title = title
+	c.UpdatedAt = updatedAt
+	return c, nil
 }
 
 func (s *Service) GetMessages(userID, conversationID string) ([]model.Message, *ServiceError) {
