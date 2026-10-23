@@ -33,6 +33,17 @@ class SessionViewModel(
     val profile: StateFlow<UserProfile?> = _profile.asStateFlow()
 
     init {
+        // A 401 or kick discovered by any later request must land on the login
+        // screen with the server's reason instead of a silent bounce.
+        viewModelScope.launch {
+            store.expirations.collect { message ->
+                if (_state.value is SessionState.LoggedOut) return@collect
+                _profile.value = null
+                _state.value = SessionState.LoggedOut(message)
+                store.clear()
+            }
+        }
+
         viewModelScope.launch {
             val token = store.token.first()
             if (token.isNullOrBlank()) {

@@ -15,6 +15,25 @@ data class LoginData(val token: String = "")
 @Serializable
 data class SessionCheck(val ok: Boolean = false)
 
+@Serializable
+data class ConversationDto(
+    val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val createdAt: String = "",
+    val updatedAt: String = "",
+    val userPhone: String = "",
+)
+
+@Serializable
+data class MessageDto(
+    val id: String = "",
+    val conversationId: String = "",
+    val role: String = "",
+    val content: String = "",
+    val createdAt: String = "",
+)
+
 /**
  * Subset of GET /api/user/profile that the App needs. Every field has a
  * default so additive backend changes never break deserialization.

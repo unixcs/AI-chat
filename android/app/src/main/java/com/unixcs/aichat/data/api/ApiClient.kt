@@ -38,6 +38,18 @@ class ApiClient(
     suspend fun logout(token: String): ApiResult<Boolean> =
         post(path = "/api/auth/logout", body = "{}", token = token)
 
+    suspend fun listConversations(token: String): ApiResult<List<ConversationDto>> =
+        get(path = "/api/chat/conversations?page=1&pageSize=500", token = token)
+
+    suspend fun createConversation(token: String): ApiResult<ConversationDto> =
+        post(path = "/api/chat/conversations", body = "{}", token = token)
+
+    suspend fun fetchMessages(token: String, conversationId: String): ApiResult<List<MessageDto>> =
+        get(path = "/api/chat/conversations/$conversationId/messages", token = token)
+
+    suspend fun deleteConversation(token: String, conversationId: String): ApiResult<Boolean> =
+        delete(path = "/api/chat/conversations/$conversationId", token = token)
+
     private suspend inline fun <reified T> get(path: String, token: String): ApiResult<T> {
         val request = Request.Builder()
             .url(baseUrl + path)
@@ -55,6 +67,15 @@ class ApiClient(
             builder.header("Authorization", "Bearer $token")
         }
         return execute(builder.build())
+    }
+
+    private suspend inline fun <reified T> delete(path: String, token: String): ApiResult<T> {
+        val request = Request.Builder()
+            .url(baseUrl + path)
+            .header("Authorization", "Bearer $token")
+            .delete()
+            .build()
+        return execute(request)
     }
 
     private suspend inline fun <reified T> execute(request: Request): ApiResult<T> =

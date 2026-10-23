@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.unixcs.aichat.data.api.UserProfile
+import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.login.LoginViewModel
 import com.unixcs.aichat.ui.screens.ChatScreen
 import com.unixcs.aichat.ui.screens.HistoryScreen
@@ -53,6 +54,9 @@ private fun AppNavHost(
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
+    // One ViewModel for chat and history: selecting a conversation in history
+    // must hand its id to the same state the chat screen renders.
+    val chatViewModel: ChatViewModel = koinViewModel()
 
     NavHost(
         navController = navController,
@@ -60,13 +64,21 @@ private fun AppNavHost(
     ) {
         composable(Routes.CHAT) {
             ChatScreen(
+                viewModel = chatViewModel,
                 onOpenHistory = { navController.navigate(Routes.HISTORY) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
 
         composable(Routes.HISTORY) {
-            HistoryScreen(onBack = { navController.popBackStack() })
+            HistoryScreen(
+                viewModel = chatViewModel,
+                onBack = { navController.popBackStack() },
+                onSelect = { conversationId ->
+                    chatViewModel.openConversation(conversationId)
+                    navController.popBackStack()
+                },
+            )
         }
 
         composable(Routes.SETTINGS) {

@@ -101,7 +101,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { confirmLogout = false },
             title = { Text("退出登录") },
-            text = { Text("退出后需要重新输入密码登录。本地聊天记录不会删除。") },
+            text = { Text("退出后需要重新输入密码。本机缓存的聊天记录会一并清除，服务器上的记录保留。") },
             confirmButton = {
                 TextButton(
                     onClick = {

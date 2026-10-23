@@ -16,3 +16,8 @@ sealed interface ApiResult<out T> {
         val unauthorized: Boolean get() = status == 401
     }
 }
+
+inline fun <T, R> ApiResult<T>.map(transform: (T) -> R): ApiResult<R> = when (this) {
+    is ApiResult.Success -> ApiResult.Success(transform(data))
+    is ApiResult.Failure -> this
+}
