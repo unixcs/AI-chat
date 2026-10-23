@@ -50,6 +50,39 @@ class ApiClient(
     suspend fun deleteConversation(token: String, conversationId: String): ApiResult<Boolean> =
         delete(path = "/api/chat/conversations/$conversationId", token = token)
 
+    suspend fun renameConversation(
+        token: String,
+        conversationId: String,
+        title: String,
+    ): ApiResult<ConversationDto> =
+        put(
+            path = "/api/chat/conversations/$conversationId/title",
+            body = json.encodeToString(RenameConversationRequest(title = title)),
+            token = token,
+        )
+
+    /**
+     * Partial update: omitted fields are left untouched by the backend, so a
+     * single chip tap never clobbers the other two dimensions.
+     */
+    suspend fun updatePreferences(
+        token: String,
+        answerLength: String? = null,
+        answerStyle: String? = null,
+        answerFormat: String? = null,
+    ): ApiResult<Boolean> =
+        put(
+            path = "/api/user/preferences",
+            body = json.encodeToString(
+                PreferencesUpdate(
+                    answerLength = answerLength,
+                    answerStyle = answerStyle,
+                    answerFormat = answerFormat,
+                ),
+            ),
+            token = token,
+        )
+
     private suspend inline fun <reified T> get(path: String, token: String): ApiResult<T> {
         val request = Request.Builder()
             .url(baseUrl + path)
@@ -74,6 +107,15 @@ class ApiClient(
             .url(baseUrl + path)
             .header("Authorization", "Bearer $token")
             .delete()
+            .build()
+        return execute(request)
+    }
+
+    private suspend inline fun <reified T> put(path: String, body: String, token: String): ApiResult<T> {
+        val request = Request.Builder()
+            .url(baseUrl + path)
+            .header("Authorization", "Bearer $token")
+            .put(body.toRequestBody(jsonMediaType))
             .build()
         return execute(request)
     }

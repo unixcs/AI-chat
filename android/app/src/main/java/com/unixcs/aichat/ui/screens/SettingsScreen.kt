@@ -16,6 +16,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,6 +37,8 @@ import com.unixcs.aichat.ui.util.maskPhone
 @Composable
 fun SettingsScreen(
     profile: UserProfile?,
+    showPreferenceEntry: Boolean,
+    onShowPreferenceEntryChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -83,6 +86,21 @@ fun SettingsScreen(
             ) {
                 Text("退出登录", color = MaterialTheme.colorScheme.error)
             }
+
+            SectionTitle("对话")
+            ListItem(
+                headlineContent = { Text("显示回答偏好入口") },
+                supportingContent = {
+                    Text("在聊天页顶部显示「偏好」按钮，可随时切换回答长度、风格和格式。本开关只影响本机。")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = showPreferenceEntry,
+                        onCheckedChange = onShowPreferenceEntryChange,
+                    )
+                },
+            )
+            HorizontalDivider()
 
             SectionTitle("关于")
             ListItem(

@@ -9,6 +9,17 @@ internal data class LoginRequest(
 )
 
 @Serializable
+internal data class RenameConversationRequest(val title: String)
+
+/** Null fields are dropped by Json(explicitNulls = false) on the wire. */
+@Serializable
+internal data class PreferencesUpdate(
+    val answerLength: String? = null,
+    val answerStyle: String? = null,
+    val answerFormat: String? = null,
+)
+
+@Serializable
 data class LoginData(val token: String = "")
 
 /** GET /api/user/session-check wraps a boolean in an object. */

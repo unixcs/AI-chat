@@ -121,6 +121,48 @@ class ChatApiTest {
     }
 
     @Test
+    fun renameConversationPutsTitleAndParsesUpdatedConversation() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """
+                {"code":0,"data":{"id":"c1","userId":"u1","title":"项目周报",
+                 "createdAt":"2026-10-24T04:00:00.000Z","updatedAt":"2026-10-24T05:00:00.000Z"}}
+                """.trimIndent(),
+            ),
+        )
+
+        val result = api.renameConversation("jwt-abc", "c1", "项目周报")
+
+        assertTrue(result is ApiResult.Success)
+        val conversation = (result as ApiResult.Success<ConversationDto>).data
+        assertEquals("项目周报", conversation.title)
+        assertEquals("2026-10-24T05:00:00.000Z", conversation.updatedAt)
+
+        val recorded = server.takeRequest()
+        assertEquals("PUT", recorded.method)
+        assertEquals("/api/chat/conversations/c1/title", recorded.path)
+        assertEquals("""{"title":"项目周报"}""", recorded.body.readUtf8())
+        assertEquals("Bearer jwt-abc", recorded.getHeader("Authorization"))
+    }
+
+    @Test
+    fun preferenceUpdateSendsOnlyTheTouchedDimension() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"code":0,"data":true}"""))
+
+        val result = api.updatePreferences("jwt-abc", answerFormat = "plain")
+
+        assertTrue(result is ApiResult.Success)
+        assertEquals(true, (result as ApiResult.Success<Boolean>).data)
+
+        val recorded = server.takeRequest()
+        assertEquals("PUT", recorded.method)
+        assertEquals("/api/user/preferences", recorded.path)
+        // Null dimensions must be omitted, never sent as null: the backend
+        // treats an explicit null as a validation error.
+        assertEquals("""{"answerFormat":"plain"}""", recorded.body.readUtf8())
+    }
+
+    @Test
     fun expiredMembershipSurfacesServerMessage() = runTest {
         server.enqueue(
             MockResponse()

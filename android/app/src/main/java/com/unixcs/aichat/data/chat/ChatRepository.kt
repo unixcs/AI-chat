@@ -56,6 +56,16 @@ class ChatRepository(
     suspend fun deleteConversation(conversationId: String): ApiResult<Boolean> =
         withToken { api.deleteConversation(it, conversationId) }
 
+    suspend fun renameConversation(conversationId: String, title: String): ApiResult<ChatConversation> =
+        withToken { api.renameConversation(it, conversationId, title) }.map { dto ->
+            ChatConversation(
+                id = dto.id,
+                title = dto.title,
+                createdAt = dto.createdAt,
+                updatedAt = dto.updatedAt,
+            )
+        }
+
     fun stream(conversationId: String, content: String): Flow<StreamEvent> = flow {
         val token = store.token.first()
         if (token.isNullOrBlank()) {

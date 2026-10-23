@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -32,17 +33,24 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unixcs.aichat.data.chat.ChatMessage
 import com.unixcs.aichat.ui.chat.ChatViewModel
+import kotlinx.coroutines.launch
 
 private const val DRAFT_ID = "__draft__"
 
@@ -57,11 +66,16 @@ private const val DRAFT_ID = "__draft__"
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
-    onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+    val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val showPreferenceEntry by viewModel.showPreferenceEntry.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var showPreferences by rememberSaveable { mutableStateOf(false) }
 
     val display = remember(ui.messages, ui.streaming, ui.streamingText) {
         buildList {
@@ -92,104 +106,141 @@ fun ChatScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = ui.title.ifBlank { "AI-chat" },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onOpenHistory) {
-                        Icon(Icons.Default.Menu, contentDescription = "打开历史")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::startNewChat) {
-                        Icon(Icons.Default.Add, contentDescription = "新建对话")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "设置")
-                    }
-                },
-            )
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.widthIn(max = 340.dp)) {
+                HistoryDrawerContent(
+                    conversations = conversations,
+                    currentId = ui.conversationId,
+                    onNewChat = {
+                        viewModel.startNewChat()
+                        scope.launch { drawerState.close() }
+                    },
+                    onSelect = { conversationId ->
+                        viewModel.openConversation(conversationId)
+                        scope.launch { drawerState.close() }
+                    },
+                    onRename = viewModel::renameConversation,
+                    onDelete = viewModel::deleteConversation,
+                )
+            }
         },
-        bottomBar = {
-            Surface(tonalElevation = 2.dp) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .imePadding(),
-                ) {
-                    ui.error?.let { message ->
-                        ErrorBanner(message = message, onDismiss = viewModel::dismissError)
-                    }
-                    Row(
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = ui.title.ifBlank { "AI-chat" },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "打开历史")
+                        }
+                    },
+                    actions = {
+                        if (showPreferenceEntry) {
+                            TextButton(onClick = { showPreferences = true }) {
+                                Text("偏好")
+                            }
+                        }
+                        IconButton(onClick = viewModel::startNewChat) {
+                            Icon(Icons.Default.Add, contentDescription = "新建对话")
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "设置")
+                        }
+                    },
+                )
+            },
+            bottomBar = {
+                Surface(tonalElevation = 2.dp) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.Bottom,
+                            .navigationBarsPadding()
+                            .imePadding(),
                     ) {
-                        OutlinedTextField(
-                            value = ui.input,
-                            onValueChange = viewModel::onInputChange,
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("输入消息…") },
-                            maxLines = 4,
-                            shape = MaterialTheme.shapes.extraLarge,
-                            enabled = !ui.loading,
-                        )
-                        Spacer(Modifier.size(8.dp))
-                        if (ui.streaming) {
-                            FilledTonalIconButton(onClick = viewModel::stopStreaming) {
-                                Icon(Icons.Default.Close, contentDescription = "停止生成")
-                            }
-                        } else {
-                            FilledIconButton(
-                                onClick = viewModel::send,
-                                enabled = ui.canSend,
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "发送",
-                                )
+                        ui.error?.let { message ->
+                            ErrorBanner(message = message, onDismiss = viewModel::dismissError)
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            OutlinedTextField(
+                                value = ui.input,
+                                onValueChange = viewModel::onInputChange,
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("输入消息…") },
+                                maxLines = 4,
+                                shape = MaterialTheme.shapes.extraLarge,
+                                enabled = !ui.loading,
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            if (ui.streaming) {
+                                FilledTonalIconButton(onClick = viewModel::stopStreaming) {
+                                    Icon(Icons.Default.Close, contentDescription = "停止生成")
+                                }
+                            } else {
+                                FilledIconButton(
+                                    onClick = viewModel::send,
+                                    enabled = ui.canSend,
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = "发送",
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-        },
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            if (ui.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            if (display.isEmpty() && !ui.loading) {
-                EmptyChatHint(modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(display, key = { it.id }) { message ->
-                        MessageBubble(
-                            message = message,
-                            thinking = message.id == DRAFT_ID && message.content.isEmpty(),
-                        )
+            },
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                if (ui.loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                if (display.isEmpty() && !ui.loading) {
+                    EmptyChatHint(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(display, key = { it.id }) { message ->
+                            MessageBubble(
+                                message = message,
+                                thinking = message.id == DRAFT_ID && message.content.isEmpty(),
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showPreferences) {
+        PreferenceSheet(
+            preferences = preferences,
+            onLengthChange = viewModel::setAnswerLength,
+            onStyleChange = viewModel::setAnswerStyle,
+            onFormatChange = viewModel::setAnswerFormat,
+            onDismiss = { showPreferences = false },
+        )
     }
 }
 

@@ -10,7 +10,6 @@ import com.unixcs.aichat.data.api.UserProfile
 import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.login.LoginViewModel
 import com.unixcs.aichat.ui.screens.ChatScreen
-import com.unixcs.aichat.ui.screens.HistoryScreen
 import com.unixcs.aichat.ui.screens.LoginScreen
 import com.unixcs.aichat.ui.screens.SettingsScreen
 import com.unixcs.aichat.ui.screens.SplashScreen
@@ -20,7 +19,6 @@ import org.koin.androidx.compose.koinViewModel
 
 object Routes {
     const val CHAT = "chat"
-    const val HISTORY = "history"
     const val SETTINGS = "settings"
 }
 
@@ -54,9 +52,10 @@ private fun AppNavHost(
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
-    // One ViewModel for chat and history: selecting a conversation in history
-    // must hand its id to the same state the chat screen renders.
+    // One ViewModel for chat and settings: history is a drawer inside Chat, and
+    // the settings screen toggles a preference-entry flag the chat observes.
     val chatViewModel: ChatViewModel = koinViewModel()
+    val showPreferenceEntry by chatViewModel.showPreferenceEntry.collectAsStateWithLifecycle()
 
     NavHost(
         navController = navController,
@@ -65,25 +64,15 @@ private fun AppNavHost(
         composable(Routes.CHAT) {
             ChatScreen(
                 viewModel = chatViewModel,
-                onOpenHistory = { navController.navigate(Routes.HISTORY) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-            )
-        }
-
-        composable(Routes.HISTORY) {
-            HistoryScreen(
-                viewModel = chatViewModel,
-                onBack = { navController.popBackStack() },
-                onSelect = { conversationId ->
-                    chatViewModel.openConversation(conversationId)
-                    navController.popBackStack()
-                },
             )
         }
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 profile = profile,
+                showPreferenceEntry = showPreferenceEntry,
+                onShowPreferenceEntryChange = chatViewModel::setPreferenceEntryVisible,
                 onLogout = onLogout,
                 onBack = { navController.popBackStack() },
             )

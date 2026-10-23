@@ -5,8 +5,10 @@ import com.unixcs.aichat.data.api.ApiClient
 import com.unixcs.aichat.data.chat.ChatRepository
 import com.unixcs.aichat.data.chat.ChatStreamClient
 import com.unixcs.aichat.data.local.AppDatabase
+import com.unixcs.aichat.data.prefs.PreferencesRepository
 import com.unixcs.aichat.data.session.AuthRepository
 import com.unixcs.aichat.data.session.SessionStore
+import com.unixcs.aichat.data.settings.AppSettingsStore
 import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.session.SessionViewModel
 import com.unixcs.aichat.ui.login.LoginViewModel
@@ -46,7 +48,9 @@ val appModule = module {
 
     single { ApiClient(BuildConfig.API_BASE_URL, get(), get()) }
     single { SessionStore(androidContext()) }
+    single { AppSettingsStore(androidContext()) }
     single { AuthRepository(get(), get()) }
+    single { PreferencesRepository(get(), get()) }
 
     single { AppDatabase.build(androidContext()) }
     single { get<AppDatabase>().chatDao() }
@@ -55,5 +59,5 @@ val appModule = module {
 
     viewModel { LoginViewModel(get()) }
     viewModel { SessionViewModel(get(), get()) }
-    viewModel { ChatViewModel(get(), get(), get()) }
+    viewModel { ChatViewModel(get(), get(), get(), get(), get()) }
 }

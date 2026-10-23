@@ -10,7 +10,10 @@ import com.unixcs.aichat.data.chat.StreamEvent
 import com.unixcs.aichat.data.local.ChatDao
 import com.unixcs.aichat.data.local.ConversationEntity
 import com.unixcs.aichat.data.local.MessageEntity
+import com.unixcs.aichat.data.prefs.ChatPreferences
+import com.unixcs.aichat.data.prefs.PreferencesRepository
 import com.unixcs.aichat.data.session.SessionStore
+import com.unixcs.aichat.data.settings.AppSettingsStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,12 +41,21 @@ data class ChatUiState(
 
 class ChatViewModel(
     private val repo: ChatRepository,
+    private val prefsRepo: PreferencesRepository,
+    private val settings: AppSettingsStore,
     private val dao: ChatDao,
     private val store: SessionStore,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(ChatUiState())
     val ui: StateFlow<ChatUiState> = _ui.asStateFlow()
+
+    private val _preferences = MutableStateFlow(ChatPreferences())
+    val preferences: StateFlow<ChatPreferences> = _preferences.asStateFlow()
+
+    /** Device-local toggle: hide the preference entry from the chat top bar. */
+    val showPreferenceEntry: StateFlow<Boolean> = settings.showPreferenceEntry
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val conversations: StateFlow<List<ChatConversation>> = dao.observeConversations()
         .map { list ->
@@ -55,6 +67,7 @@ class ChatViewModel(
 
     init {
         viewModelScope.launch { refreshConversations() }
+        viewModelScope.launch { refreshPreferences() }
         viewModelScope.launch {
             conversations.collect { list ->
                 val id = _ui.value.conversationId ?: return@collect
@@ -68,7 +81,11 @@ class ChatViewModel(
         // local cache or draft into the next login.
         viewModelScope.launch {
             store.token.drop(1).collect { token ->
-                if (token.isNullOrBlank()) resetForLogout()
+                if (token.isNullOrBlank()) {
+                    resetForLogout()
+                } else {
+                    refreshPreferences()
+                }
             }
         }
     }
@@ -195,6 +212,76 @@ class ChatViewModel(
         }
     }
 
+    fun renameConversation(conversationId: String, newTitle: String) {
+        val title = newTitle.trim()
+        if (title.isEmpty()) return
+        val known = conversations.value.firstOrNull { it.id == conversationId }?.title
+        if (title == known) return
+        viewModelScope.launch {
+            when (val result = repo.renameConversation(conversationId, title)) {
+                is ApiResult.Success -> {
+                    dao.upsertConversations(listOf(result.data.toEntity()))
+                    _ui.update {
+                        if (it.conversationId == conversationId) it.copy(title = result.data.title) else it
+                    }
+                }
+
+                is ApiResult.Failure -> {
+                    _ui.update { it.copy(error = result.message) }
+                    refreshConversations()
+                }
+            }
+        }
+    }
+
+    fun setAnswerLength(value: String) = updatePreference(
+        value = value,
+        read = ChatPreferences::answerLength,
+        apply = { prefs, v -> prefs.copy(answerLength = v) },
+        request = { prefsRepo.updateLength(value) },
+    )
+
+    fun setAnswerStyle(value: String) = updatePreference(
+        value = value,
+        read = ChatPreferences::answerStyle,
+        apply = { prefs, v -> prefs.copy(answerStyle = v) },
+        request = { prefsRepo.updateStyle(value) },
+    )
+
+    fun setAnswerFormat(value: String) = updatePreference(
+        value = value,
+        read = ChatPreferences::answerFormat,
+        apply = { prefs, v -> prefs.copy(answerFormat = v) },
+        request = { prefsRepo.updateFormat(value) },
+    )
+
+    fun setPreferenceEntryVisible(visible: Boolean) {
+        viewModelScope.launch { settings.setShowPreferenceEntry(visible) }
+    }
+
+    /**
+     * Optimistic update: the chip flips immediately, and only this one
+     * dimension is sent. A failure reverts that dimension (unless the user has
+     * already picked something newer) and surfaces the server message.
+     */
+    private fun updatePreference(
+        value: String,
+        read: (ChatPreferences) -> String,
+        apply: (ChatPreferences, String) -> ChatPreferences,
+        request: suspend () -> ApiResult<Boolean>,
+    ) {
+        val previous = read(_preferences.value)
+        if (value == previous) return
+        _preferences.update { apply(it, value) }
+        viewModelScope.launch {
+            val result = request()
+            if (result is ApiResult.Failure) {
+                _preferences.update { if (read(it) == value) apply(it, previous) else it }
+                _ui.update { it.copy(error = result.message) }
+            }
+        }
+    }
+
     private suspend fun ensureConversation(text: String): String? {
         _ui.value.conversationId?.let { return it }
         return when (val result = repo.createConversation()) {
@@ -307,10 +394,19 @@ class ChatViewModel(
         }
     }
 
+    private suspend fun refreshPreferences() {
+        when (val result = prefsRepo.load()) {
+            is ApiResult.Success -> _preferences.value = result.data
+            // Defaults stay usable; a later successful load will replace them.
+            is ApiResult.Failure -> Unit
+        }
+    }
+
     private fun resetForLogout() {
         streamJob?.cancel()
         streamJob = null
         _ui.value = ChatUiState()
+        _preferences.value = ChatPreferences()
         viewModelScope.launch { dao.clearAll() }
     }
 
