@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unixcs.aichat.data.chat.ChatMessage
 import com.unixcs.aichat.ui.chat.ChatViewModel
+import com.unixcs.aichat.ui.components.MarkdownText
 import kotlinx.coroutines.launch
 
 private const val DRAFT_ID = "__draft__"
@@ -278,7 +279,10 @@ private fun MessageBubble(message: ChatMessage, thinking: Boolean) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else {
+            } else if (isUser || message.id == DRAFT_ID) {
+                // While streaming, render plain text: re-parsing Markdown on
+                // every delta is what made the web client stutter. The final
+                // persisted message is rendered as Markdown.
                 SelectionContainer {
                     Text(
                         text = message.content,
@@ -286,6 +290,11 @@ private fun MessageBubble(message: ChatMessage, thinking: Boolean) {
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     )
                 }
+            } else {
+                MarkdownText(
+                    markdown = message.content,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                )
             }
         }
     }
