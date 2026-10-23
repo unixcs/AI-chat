@@ -33,7 +33,47 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon testDebugUnitTest --console=plain 2>&1 | tee /tmp/test.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -eq 0 ]; then
+            exit 0
+          fi
+          # Workflow job logs require an authenticated download, but
+          # annotations are readable from the public API. Collapse the useful
+          # failure lines into one annotation so CI can be diagnosed from
+          # outside the GitHub UI.
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          lines = []
+          for path in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in root.iter("testcase"):
+                  for failure in list(case.findall("failure")) + list(case.findall("error")):
+                      text = (failure.get("message") or failure.text or "").strip().splitlines()
+                      detail = text[0] if text else "failed"
+                      lines.append(f"{case.get('classname')}.{case.get('name')}: {detail}")
+                      if len(lines) >= 8:
+                          break
+
+          log = open("/tmp/test.log", errors="replace").read().splitlines()
+          lines += [line for line in log if line.startswith("e: ")][:20]
+          lines += [line for line in log if "FAILED" in line or "tests completed" in line][:5]
+          if not lines:
+              lines = log[-20:]
+
+          message = "\n".join(lines)[:60000]
+          message = message.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+          print(f"::error::{message}")
+          PY
+          exit "$code"
 
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
