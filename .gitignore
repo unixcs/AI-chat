@@ -30,3 +30,21 @@ AGENTS.md
 opencode.json
 backend-go/.env
 backend-go/data.sqlite*
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/build/
+android/app/build/
+android/captures/
+*.apk
+*.aab
+
+# Signing material never enters git
+*.jks
+*.keystore
+
+# Local agent/tool config
+.zcode/
+.qoder/
