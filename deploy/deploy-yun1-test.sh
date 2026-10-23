@@ -1,9 +1,10 @@
 #!/bin/bash
-# AI-chat Go 版 · yun1 测试实例部署/更新脚本
-# 在 WSL 本地（/mnt/demo/AI-chat）执行：
+# AI-chat Go 版 · yun1 测试实例部署/更新脚本（2026-10-24 收口：测试服固定 yun1 8189）
+# 在本地仓库根执行：
 #   bash deploy/deploy-yun1-test.sh
 # 红线：只碰 yun1 的 ai-chat-go-* 容器与 /opt/ai-chat-go-test/，绝不触碰
-#       yun 生产、yun1 现有 ai-chat 二节点（8181/3001）及其 /opt/AI-chat。
+#       yun 生产 8181/3001（禁止任何测试改动）及 yun1 现有 ai-chat 二节点
+#       （8181/3001，Node 老版，已决定退役）。
 
 set -euo pipefail
 

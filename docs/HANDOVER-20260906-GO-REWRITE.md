@@ -21,6 +21,8 @@
 
 ## 2. 三套环境现状（2026-09-06 晚，生产已升级）
 
+> **📌 2026-10-24 收口批注（以此为准，覆盖下表）**：**yun 8181 = 生产专用，禁止任何测试改动**；**今后所有测试一律用 yun1 8189**（`/opt/ai-chat-go-test`）。下表「yun 测试服」已关闭（容器 Exited、数据保留、不再启用）。yun1 上的 Node 老版二节点（8181/3001，与 yun 生产同号不同机）已决定**退役**，待用户确认后执行。
+
 | 环境 | 位置 | 版本 | 状态 |
 |---|---|---|---|
 | **yun 生产** | yun 服务器 `8181`(前端)/`3001`(后端)，`/opt/AI-chat`，数据 `/srv/ai-chat/data` | **Go 新版（2026-09-06 21:13 切换，镜像 tag `prod-29bb956`）** | 已验收（§7），数据零丢失，旧 token 直接有效 |
@@ -78,7 +80,7 @@
 ## 6. 联络锚点
 
 - 完整验收/审查记录：本仓库 `docs/GO-REWRITE-REPORT.md`（§12/§13）、`docs/PREF-UI-REDESIGN-PLAN.md`（§6/§7/R13/§8-R14）、`docs/BRAND-GUIDELINES.md`
-- 部署脚本：`deploy/deploy-yun1-test.sh`（`SSH_TARGET=yun REMOTE_DIR=/home/admin/ai-chat-go-test bash deploy/deploy-yun1-test.sh` 可重复执行更新测试服）
+- 部署脚本：`deploy/deploy-yun1-test.sh`（**2026-10-24 收口：测试服固定 yun1，直接 `bash deploy/deploy-yun1-test.sh`，勿再指向 yun**——yun 为生产专用，其测试位已关闭）
 
 ## 7. 生产 8181 升级实录（2026-09-06 21:05–21:20 完成，方案由子代理规划+主会话过审执行）
 

@@ -1,7 +1,6 @@
 # AI-chat 开发 → 测试 → 生产 → 收尾 工作流总结
 
-> 基于 2026-09-05 实际执行记录整理。
-> 适用服务器：云服务器（当前生产 121.41.192.80，入口 admin）。
+> 基于 2026-09-05 实际执行记录整理；2026-10-24 按服务器职责收口更新（见 §2）。
 > 核心原则：**测试隔离、数据不丢、生产只做最小变更、先备份再重建、验收通过再发布。**
 
 ## 1. 一图流
@@ -10,28 +9,36 @@
 本地开发 / 修改
       │ git commit（本地分支 master）
       ▼
-部署到测试服（8189/3002）：
-  /home/admin/ai-chat-test  → docker compose up -d --force-recreate --build -> 人工验收
+部署到测试服（yun1 · 8189/3002）：
+  /opt/ai-chat-go-test → 本地构建镜像 → ssh load → docker compose up -d --no-build → 人工验收
       │ 验收通过
       ▼
-部署到生产服（8181/3001）：
+部署到生产服（yun · 8181/3001）：
   备份 → 同步最小文件 → 合并 compose → 更新 .env → 重建容器 → 自动验证 → 人工验收
       │ 验收通过
       ▼
 Push 到 GitHub（main）
-      ▼
-关闭测试服：
-  /home/admin/ai-chat-test → docker compose down（保留数据，不删 volume）
 ```
 
-## 2. 云服务器目录/端口约定
+## 2. 服务器职责划分（2026-10-24 用户决定，硬性红线）
+
+| 机器 | 公网 IP | 职责 | 端口 | 路径 |
+|---|---|---|---|---|
+| **yun** | 121.41.192.80 | **生产专用**——🚫 **禁止任何测试改动**（不得在 yun 上起/重建测试容器） | frontend `8181`，backend `3001` | `/opt/AI-chat`，数据 `/srv/ai-chat/data` |
+| **yun1** | 121.41.206.32 | **测试专用**——今后所有测试一律用 yun1 `8189` | frontend `8189`，backend `3002` | `/opt/ai-chat-go-test` |
+
+- ⚠️ **yun1 上也有一个 `8181/3001` 容器（Node 老版）**——与 yun 生产端口号相同但属不同机器，切勿混淆。该容器已决定**退役**（退役为停机操作，需用户单独确认后执行）。
+- yun 上的历史测试位（`/home/admin/ai-chat-test`、`/home/admin/ai-chat-go-test`）已关闭、数据保留，**不再启用**。
+- 测试数据：`/opt/ai-chat-go-test/data`（yun1），关闭测试服时保留。
+
+## 2.1 （历史）旧云服务器目录/端口约定
 
 | 环境 | 路径 | 端口 |
 |---|---|---|
-| 生产 | `/opt/AI-chat` | frontend `8181 -> 80`，backend `3001 -> 3001` |
-| 测试 | `/home/admin/ai-chat-test` | frontend `8189 -> 80`，backend `3002 -> 3001` |
-| 生产数据 | `/srv/ai-chat/data/data.sqlite` | 必须只备份、不动 |
-| 测试数据 | `/home/admin/ai-chat-test/data` | 关闭测试服时保留 |
+| 生产 | `/opt/AI-chat`（yun） | frontend `8181 -> 80`，backend `3001 -> 3001` |
+| 测试（旧，已停用） | `/home/admin/ai-chat-test`（yun） | frontend `8189 -> 80`，backend `3002 -> 3001` |
+| 生产数据 | `/srv/ai-chat/data/data.sqlite`（yun） | 必须只备份、不动 |
+| 测试数据 | yun1 `/opt/ai-chat-go-test/data`；yun `/home/admin/ai-chat-test/data`（保留） | 关闭测试服时保留 |
 
 ## 3. 标准发布步骤（可直接复用）
 
@@ -45,27 +52,22 @@ git commit -m "fix: ..."
 git status
 ```
 
-### 3.2 部署到测试环境（8189）
+### 3.2 部署到测试环境（yun1 · 8189）
 
 ```bash
-# 服务器上确保测试目录已存在
-ssh admin@121.41.192.80
-
-# 代码同步：把本地后端/前端源码上传到 /home/admin/ai-chat-test
-# 可以直接 scp 或工具同步（注意避开 node_modules、.git、data、.env）
-
-# 如果新增了环境变量（如 DEEPSEEK_EXTRA_BODY），只追加到测试 .env
-cd /home/admin/ai-chat-test
-grep -q '^DEEPSEEK_EXTRA_BODY=' backend/.env || \
-  echo 'DEEPSEEK_EXTRA_BODY={"reasoning_effort":"none","max_tokens":1000}' >> backend/.env
-
-# 关键：必须 force-recreate，因为 docker restart 不重新加载 .env
-docker compose up -d --force-recreate --build
+# 标准做法：一键部署脚本（本地构建镜像 → ssh load → --no-build 拉起，不在服务器构建）
+bash deploy/deploy-yun1-test.sh
+# 默认 SSH_TARGET=yun1 REMOTE_DIR=/opt/ai-chat-go-test
 
 # 验证
-curl -s http://127.0.0.1:8189/api/health
-docker exec ai-chat-test-frontend grep -E 'proxy_(read|send)_timeout' /etc/nginx/conf.d/default.conf
-docker exec ai-chat-test-backend printenv DEEPSEEK_EXTRA_BODY
+ssh yun1 "curl -s --max-time 5 http://127.0.0.1:3002/api/health"
+
+# 如果新增了环境变量，只追加到 yun1 测试 .env
+ssh yun1 "grep -q '^DEEPSEEK_EXTRA_BODY=' /opt/ai-chat-go-test/backend/.env || \
+  echo 'DEEPSEEK_EXTRA_BODY={\"reasoning_effort\":\"none\",\"max_tokens\":1000}' >> /opt/ai-chat-go-test/backend/.env"
+
+# 关键：.env 变更后必须 force-recreate，docker restart 不重新加载 .env
+ssh yun1 "cd /opt/ai-chat-go-test && docker compose up -d --force-recreate --no-build"
 ```
 
 ### 3.3 人工验收测试环境
@@ -127,16 +129,17 @@ sqlite3 "file:/srv/ai-chat/data/data.sqlite?mode=ro" \
 - 确认首字更快、无 60s 卡顿、历史聊天/登录态正常。
 - 确认后台账单后续 token 量下降（可等 1~2 天看 DeepSeek 官方后台）。
 
-### 3.6 关闭测试服（只关闭服务，保留数据）
+### 3.6 测试服关闭 / 退役（只关闭服务，保留数据）
+
+> 2026-10-24 起现行测试服（yun1 8189）**常态保活**，不再每轮部署后关闭；关闭测试服不再是发布流程的收尾步骤。
 
 ```bash
-ssh admin@121.41.192.80
-cd /home/admin/ai-chat-test
-docker compose down          # 不要加 -v，否则删除数据
+# 如需临时停用 yun1 测试服：
+ssh yun1 "cd /opt/ai-chat-go-test && docker compose down"   # 不要加 -v，否则测试数据丢失
 
-# 验证端口释放
-ss -ltnp | grep -E ':(8189|3002)' || echo 'ports free'
-docker ps -a --filter name=ai-chat-test
+# 【待执行·需用户确认】yun1 老 Node 二节点退役（8181/3001，容器 ai-chat-*）：
+ssh yun1 "cd <对应compose目录> && docker compose down"      # 同样保留数据，不加 -v
+# 注意：操作对象是 yun1，绝不能误碰 yun 生产同名端口容器
 ```
 
 ### 3.7 推送到 GitHub

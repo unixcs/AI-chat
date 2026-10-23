@@ -64,7 +64,7 @@ AI-chat/
 │  ├─ tests/                    # node --test 回归 + 暗色双机制校验脚本
 │  └─ Dockerfile                # node:22-alpine 构建 → nginx:alpine
 ├─ deploy/
-│  ├─ deploy-yun1-test.sh       # 测试服一键部署/更新（本地构建镜像 → ssh load → --no-build 拉起）
+│  ├─ deploy-yun1-test.sh       # 测试服一键部署/更新（固定 yun1 8189；本地构建镜像 → ssh load → --no-build 拉起）
 │  └─ docker-compose.yun1-test.yml
 ├─ docs/                        # 现行文档（见 §7 文档索引）
 ├─ docker-compose.yml           # ⚠️ Node 老版遗留示例（build ./backend），勿用于 Go 版
@@ -102,6 +102,8 @@ cd frontend && python3 tests/verify-dark-mode.py   # 暗色双机制（data-them
 ```
 
 ## 6. Docker 部署
+
+> **服务器职责（2026-10-24 收口）**：yun（121.41.192.80）`8181/3001` = **生产专用，禁止任何测试改动**；yun1（121.41.206.32）`8189/3002` = **测试专用，今后所有测试一律在此**。yun1 上另有一个 Node 老版 `8181/3001` 二节点（与生产同号不同机），已决定退役。详见 `CURRENT_STATE.md` §0 与 `DEPLOYMENT_WORKFLOW.md` §2。
 
 生产做法（小内存服务器也适用）：**镜像在本地/CI 构建，传输到服务器 `docker load`，服务器上只 `--no-build` 拉起**——不要在小内存机器上原地 build。
 
