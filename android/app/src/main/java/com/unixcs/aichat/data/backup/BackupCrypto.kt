@@ -8,6 +8,7 @@ import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 
 class BackupFormatException(message: String) : Exception(message)
 
@@ -42,14 +43,10 @@ object BackupCrypto {
     fun encrypt(plaintext: ByteArray, password: CharArray): ByteArray {
         val salt = ByteArray(SALT_LENGTH).also(random::nextBytes)
         val iv = ByteArray(IV_LENGTH).also(random::nextBytes)
-        val key = deriveKey(password, salt)
-        try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
-            return header(salt, iv) + cipher.doFinal(plaintext)
-        } finally {
-            key.fill(0)
-        }
+        val key = secretKey(password, salt)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
+        return header(salt, iv) + cipher.doFinal(plaintext)
     }
 
     fun decrypt(payload: ByteArray, password: CharArray): ByteArray {
@@ -66,7 +63,7 @@ object BackupCrypto {
         val salt = payload.copyOfRange(SALT_OFFSET, SALT_OFFSET + SALT_LENGTH)
         val iv = payload.copyOfRange(IV_OFFSET, HEADER_LENGTH)
         val ciphertext = payload.copyOfRange(HEADER_LENGTH, payload.size)
-        val key = deriveKey(password, salt)
+        val key = secretKey(password, salt)
         try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
@@ -75,8 +72,19 @@ object BackupCrypto {
             throw BackupPasswordException()
         } catch (_: GeneralSecurityException) {
             throw BackupPasswordException()
+        }
+    }
+
+    /**
+     * The derived bytes are copied by [SecretKeySpec] and then wiped. The key
+     * object itself cannot be zeroed through the JCE API; it is left to GC.
+     */
+    private fun secretKey(password: CharArray, salt: ByteArray): SecretKeySpec {
+        val bytes = deriveKey(password, salt)
+        return try {
+            SecretKeySpec(bytes, "AES")
         } finally {
-            key.fill(0)
+            bytes.fill(0)
         }
     }
 
