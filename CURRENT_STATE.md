@@ -1,6 +1,6 @@
 # AI-Chat 当前状态总览
 
-> 更新时间：2026-10-24（服务器职责收口归档；下文 §0 为最新权威，§1 及以后为 2026-09-05 历史记录）
+> 更新时间：2026-10-24（服务器职责收口 + Android 1.0.0 发布；§0/§0.1 为最新权威，§1 及以后为 2026-09-05 历史记录）
 
 ## 0. 服务器职责划分（2026-10-24 用户决定，最高优先级，实地核查确认）
 
@@ -17,6 +17,41 @@ yun1 上的环境（2026-10-24 实测）：
 
 历史遗留说明：
 - yun 上的老测试服（`/home/admin/ai-chat-test`、`/home/admin/ai-chat-go-test`，8189/3002）已于 2026-09 关闭，容器 Exited、数据保留不删。**yun 从此不再承载任何测试流量**。
+
+## 0.1 Android 1.0.0 与生产后端补丁（2026-10-24）
+
+### Android 发布
+
+| 项 | 值 |
+|---|---|
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.0.0>（tag 指向 `ad841ac`） |
+| APK | `aichat-1.0.0.apk`，8,975,733 字节 |
+| SHA-256 | `a7554786891d5bacc24ce96925d898fd9bcc831bb6333dea98552cede220a61d`（与 GitHub asset digest 一致） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.0.0`，versionCode `7`；minSdk 26 / targetSdk 35 |
+| 签名 | APK Signing Block v2 已验证（minSdk 26 无需 v1） |
+| release 端点 | `http://121.41.192.80:8181`（生产）；APK 内未出现测试地址 |
+| debug 端点 | `http://121.41.206.32:8189`（yun1，仅开发调试） |
+
+CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448）均 success；release 由 tag 触发，keystore 从 GitHub Secrets 临时解码并在构建后删除。
+
+功能范围：登录、SSE 流式对话、Markdown、Room 历史、分组/搜索/重命名/删除、三维度偏好、资料/会员状态、AES-256-GCM 加密备份导入导出、深色模式。构建与发布细节见 `android/README.md`。
+
+**未完成项**：本环境无法连接真机，尚未做真机冒烟。建议至少验证：登录、流式对话、断网重连、历史重命名/删除、导出后清数据再导入、深色模式。
+
+### 生产后端补丁
+
+为支持 Android 会话重命名，生产后端升级为加法端点 `PUT /api/chat/conversations/{id}/title`（`7be22ed`，不改变既有字段/路径/错误格式）。
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ai-chat-go-backend:prod-b243734`（二进制 sha256 `861784e2…87bd3`） |
+| 切换时间 | 2026-10-23T22:13:27Z，`up -d --no-build`，后端停机约 4–5 秒，前端全程在线 |
+| 数据备份 | `/home/admin/backup-pre-android-20261024-061216/data.sqlite`（sha256 `74a1e9d9…b194`） |
+| compose 备份 | `/opt/AI-chat/docker-compose.override.yml.bak-pre-android-20261024-061216` |
+| 回滚镜像 | `ai-chat-go-backend:prod-29bb956` |
+| 验证 | 切换前后表行数一致；仅备份副本预演迁移；`tools/health-yun.sh all` ALL GREEN；rename 未授权返回 401 |
+
+回滚方式：把 `docker-compose.override.yml` 中 backend 的 `image` 改回 `ai-chat-go-backend:prod-29bb956`，执行 `docker compose -p ai-chat up -d --no-build backend`。
 
 ## 1. 仓库和代码在哪儿
 

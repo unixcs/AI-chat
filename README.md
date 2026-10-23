@@ -6,6 +6,7 @@
 
 - **后端 Node.js → Go 重构**：API 契约 100% 兼容（前端零改动可跑），JWT 互相签发/校验兼容，SQLite 数据库同表名增量迁移（老库直接接管，用户无感升级）。
 - **全站 UI 重建**：Tailwind CSS v4 + shadcn-vue 风格组件（reka-ui，组件源码进仓库），浅色/深色双主题，移动端自适应。
+- **Android 原生客户端**：Kotlin + Jetpack Compose，与网页版共用同一后端；2026-10 发布 v1.0.0（`android-v1.0.0`）。
 
 ## 1. 功能概览
 
@@ -41,8 +42,9 @@
 |---|---|
 | 后端 | Go 1.27（标准库 `net/http`）、`modernc.org/sqlite`（纯 Go SQLite，无 CGO）、`golang-jwt/v5`、bcrypt |
 | 前端 | Vue 3 + Vite、Tailwind CSS v4（CSS-first token）、reka-ui、Pinia、markdown-it + DOMPurify、lucide-vue-next |
+| Android | Kotlin 2.0.21、Jetpack Compose、Material 3、Navigation Compose、Koin、Room、OkHttp、kotlinx-serialization |
 | 存储 | SQLite 单文件（WAL）；schema 增量迁移幂等，老版本数据库可直接接管 |
-| 部署 | Docker Compose；前端容器 Nginx 承载静态资源并反代 `/api` |
+| 部署 | Docker Compose；前端容器 Nginx 承载静态资源并反代 `/api`；Android 由 GitHub Actions 构建签名 APK |
 
 ## 3. 项目结构
 
@@ -63,10 +65,11 @@ AI-chat/
 │  ├─ src/components/ui/        # shadcn-vue 风格组件（源码入仓库）
 │  ├─ tests/                    # node --test 回归 + 暗色双机制校验脚本
 │  └─ Dockerfile                # node:22-alpine 构建 → nginx:alpine
+├─ android/                     # 原生 Android 客户端（Kotlin + Compose，见 android/README.md）
 ├─ deploy/
 │  ├─ deploy-yun1-test.sh       # 测试服一键部署/更新（固定 yun1 8189；本地构建镜像 → ssh load → --no-build 拉起）
 │  └─ docker-compose.yun1-test.yml
-├─ docs/                        # 现行文档（见 §7 文档索引）
+├─ docs/                        # 现行文档（见 §8 文档索引）
 ├─ docker-compose.yml           # ⚠️ Node 老版遗留示例（build ./backend），勿用于 Go 版
 └─ backend/                     # ⚠️ Node 老版后端，2026-09-06 已退役，仅存档（完整历史见 commit 4b7bfa9）
 ```
@@ -130,10 +133,39 @@ docker save ai-chat-go-frontend:latest | gzip -1 | ssh HOST 'gunzip | docker loa
 - 备份：`sqlite3 <库文件> ".backup '<目标文件>'"`（WAL 感知的一致性备份，比直接 cp 可靠）
 - 升级 SOP（无缝、保数据）：`sqlite3 .backup` 一致性备份 → 备份副本挂一次性容器预演迁移并逐行对账 → compose override 文件只覆 `image` 字段 → `up -d --no-build` 切换 → 终对账。完整步骤见 `docs/HANDOVER-20260906-GO-REWRITE.md`（2026-09-06 已在生产 8181 实盘执行：停机约 45 秒、旧 token 免重登、数据零丢失）
 
-## 7. 文档索引
+## 7. Android 客户端
+
+原生 Kotlin + Jetpack Compose 客户端，与网页版共用同一套 `/api`。当前 **v1.0.0（versionCode 7，包名 `com.unixcs.aichat`）**。
+
+- 下载：[`android-v1.0.0`](https://github.com/unixcs/AI-chat/releases/tag/android-v1.0.0) · `aichat-1.0.0.apk`（8,975,733 字节）
+- SHA-256：`a7554786891d5bacc24ce96925d898fd9bcc831bb6333dea98552cede220a61d`
+
+功能：登录、SSE 流式对话、Markdown 渲染、Room 本地历史、历史分组/搜索/重命名/删除、三维度回答偏好、个人资料与会员状态、AES-256-GCM 加密备份导入导出、深色模式。
+
+服务器地址按构建类型隔离，debug 不会碰生产：
+
+| 构建 | 地址 | 用途 |
+|---|---|---|
+| release | `http://121.41.192.80:8181` | yun 生产 |
+| debug | `http://121.41.206.32:8189` | yun1 测试服 |
+
+`android/app/src/main/res/xml/network_security_config.xml` 只允许上述两个主机使用明文 HTTP，其余域名默认禁止。
+
+```bash
+cd android
+./gradlew testDebugUnitTest      # 单元测试
+./gradlew assembleDebug          # debug 包（指向 yun1）
+# release 需注入 ANDROID_KEYSTORE_PATH / _PASSWORD / _ALIAS / _KEY_PASSWORD
+./gradlew assembleRelease
+```
+
+发布：更新 `android/app/build.gradle.kts` 版本号 → 推送 `android/**` 到 `main`（触发 `Android_Debug` 单测）→ 打 `android-v*` tag 并推送（触发 `Android Release`，构建签名 APK 并上传 Release）。签名 keystore 只存在于 GitHub Secrets 和本地备份，不进仓库、不进服务器。详细说明见 [`android/README.md`](android/README.md)。
+
+## 8. 文档索引
 
 | 文档 | 内容 |
 |---|---|
+| `android/README.md` | Android 功能、构建、签名发布、备份格式与已知边界 |
 | `docs/HANDOVER-20260906-GO-REWRITE.md` | 交接总入口：环境/版本锚点、部署与生产升级 SOP、升级实录 |
 | `docs/GO-REWRITE-REPORT.md` | Go 重构全记录：架构、十轮对抗审查、验收数据 |
 | `docs/PREF-UI-REDESIGN-PLAN.md` | 三维度回答偏好设计 + 全站 UI 重建方案与验收 |
@@ -141,14 +173,15 @@ docker save ai-chat-go-frontend:latest | gzip -1 | ssh HOST 'gunzip | docker loa
 | `docs/GO-REFACTOR-PLAN.md` / `docs/GO-CHAT-PLAN-ORIGINAL.md` | 重构计划（修订版/原始版） |
 | `docs/PROMPT-BOT-PLAN.md` | Telegram 提示词 Bot 设计 |
 
-## 8. 安全建议（生产必做）
+## 9. 安全建议（生产必做）
 
 - 修改默认管理员密码；`JWT_SECRET` 必须换成强随机值
 - `.env` 权限 600，不入库、不进镜像构建上下文
 - 反代层上 HTTPS；安全组/防火墙仅放行 80/443
 - 定期执行 §6 的 SQLite 备份并异地存放
+- Android 签名 keystore 至少双备份，密码与文件分开保存；丢失后无法覆盖安装升级
 - 日志轮转与监控告警
 
-## 9. License
+## 10. License
 
 仅供学习与原型演示使用。
