@@ -19,8 +19,8 @@ android {
         applicationId = "com.unixcs.aichat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
 
         // Dev endpoints always point at the yun1 test instance (8189).
         // Phase 6 switches this single value to the production address.

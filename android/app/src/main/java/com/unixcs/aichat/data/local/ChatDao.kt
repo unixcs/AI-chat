@@ -7,6 +7,11 @@ import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+data class BackupSnapshot(
+    val conversations: List<ConversationEntity>,
+    val messages: List<MessageEntity>,
+)
+
 /**
  * Abstract class instead of an interface: Room's KSP processor handles
  * concrete @Transaction bodies reliably in classes across Kotlin JVM-default
@@ -19,8 +24,32 @@ abstract class ChatDao {
     @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
     abstract fun observeConversations(): Flow<List<ConversationEntity>>
 
+    @Query("SELECT * FROM conversations")
+    abstract suspend fun getAllConversations(): List<ConversationEntity>
+
+    @Query("SELECT * FROM messages")
+    abstract suspend fun getAllMessages(): List<MessageEntity>
+
+    /** Consistent snapshot for a backup export (both queries in one transaction). */
+    @Transaction
+    open suspend fun snapshot(): BackupSnapshot =
+        BackupSnapshot(getAllConversations(), getAllMessages())
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertConversations(items: List<ConversationEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertMessages(items: List<MessageEntity>)
+
+    /** Merge a backup into the cache; existing rows with the same ids win. */
+    @Transaction
+    open suspend fun mergeBackup(
+        conversations: List<ConversationEntity>,
+        messages: List<MessageEntity>,
+    ) {
+        upsertConversations(conversations)
+        insertMessages(messages)
+    }
 
     @Query("DELETE FROM conversations WHERE id NOT IN (:ids)")
     abstract suspend fun deleteConversationsNotIn(ids: List<String>)
@@ -45,9 +74,6 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt, id")
     abstract suspend fun getMessages(conversationId: String): List<MessageEntity>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    abstract suspend fun insertMessages(items: List<MessageEntity>)
 
     @Transaction
     open suspend fun replaceMessages(conversationId: String, items: List<MessageEntity>) {

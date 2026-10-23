@@ -1,9 +1,18 @@
 package com.unixcs.aichat.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -12,24 +21,37 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unixcs.aichat.BuildConfig
 import com.unixcs.aichat.data.api.UserProfile
+import com.unixcs.aichat.ui.backup.BackupViewModel
 import com.unixcs.aichat.ui.util.maskPhone
+import java.time.LocalDate
+import org.koin.androidx.compose.koinViewModel
+
+private enum class BackupAction { Export, Import }
 
 // Phase 1: account + logout. Phase 4 adds the preference-visibility switch;
 // Phase 5 adds encrypted export/import; Phase 6 shows the production endpoint.
@@ -43,8 +65,42 @@ fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
+    var dialogAction by remember { mutableStateOf<BackupAction?>(null) }
+    var pendingPassword by remember { mutableStateOf<CharArray?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val backupViewModel: BackupViewModel = koinViewModel()
+    val backupState by backupViewModel.ui.collectAsStateWithLifecycle()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri: Uri? ->
+        val password = pendingPassword
+        pendingPassword = null
+        if (uri != null && password != null) {
+            backupViewModel.export(uri, password.copyOf())
+        }
+        password?.fill('\u0000')
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        val password = pendingPassword
+        pendingPassword = null
+        if (uri != null && password != null) {
+            backupViewModel.import(uri, password.copyOf())
+        }
+        password?.fill('\u0000')
+    }
+
+    LaunchedEffect(backupState.message) {
+        val message = backupState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        backupViewModel.consumeMessage(message)
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
@@ -102,6 +158,47 @@ fun SettingsScreen(
             )
             HorizontalDivider()
 
+            SectionTitle("数据")
+            Text(
+                text = "备份包含本机缓存的全部会话和消息，使用 AES-256-GCM 加密后保存到你选择的位置。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { dialogAction = BackupAction.Export },
+                    enabled = !backupState.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("导出备份")
+                }
+                OutlinedButton(
+                    onClick = { dialogAction = BackupAction.Import },
+                    enabled = !backupState.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("导入备份")
+                }
+            }
+            if (backupState.busy) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+            }
+            Text(
+                text = "导入只会合并，不会删除本机已有会话。备份密码不会上传或保存，遗忘后无法恢复。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+            )
+            HorizontalDivider()
+
             SectionTitle("关于")
             ListItem(
                 headlineContent = { Text("服务器地址") },
@@ -137,6 +234,103 @@ fun SettingsScreen(
             },
         )
     }
+
+    dialogAction?.let { action ->
+        BackupPasswordDialog(
+            exporting = action == BackupAction.Export,
+            onDismiss = { dialogAction = null },
+            onConfirm = { password ->
+                dialogAction = null
+                pendingPassword = password.toCharArray()
+                when (action) {
+                    BackupAction.Export -> exportLauncher.launch(
+                        "aichat-backup-${LocalDate.now()}.aichat",
+                    )
+
+                    BackupAction.Import -> importLauncher.launch(
+                        arrayOf(
+                            "application/octet-stream",
+                            "application/zip",
+                            "application/x-zip-compressed",
+                        ),
+                    )
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun BackupPasswordDialog(
+    exporting: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val minimumLength = 8
+    val valid = password.length >= minimumLength && (!exporting || password == confirmation)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (exporting) "导出加密备份" else "导入加密备份") },
+        text = {
+            Column {
+                Text(
+                    text = if (exporting) {
+                        "设置至少 8 位密码。密码不会上传或保存，遗忘后备份无法恢复。"
+                    } else {
+                        "输入导出备份时设置的密码。连续输错不会锁定，但无法跳过校验。"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("备份密码") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                if (exporting) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = confirmation,
+                        onValueChange = { confirmation = it },
+                        label = { Text("确认密码") },
+                        singleLine = true,
+                        isError = confirmation.isNotEmpty() && confirmation != password,
+                        supportingText = {
+                            if (confirmation.isNotEmpty() && confirmation != password) {
+                                Text("两次输入的密码不一致")
+                            }
+                        },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    )
+                }
+                if (password.isNotEmpty() && password.length < minimumLength) {
+                    Text(
+                        text = "密码至少 8 位",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(password) }, enabled = valid) {
+                Text(if (exporting) "选择保存位置" else "选择备份文件")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 @Composable
