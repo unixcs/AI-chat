@@ -243,6 +243,7 @@ fun ChatScreen(
                             MessageCard(
                                 message = message,
                                 thinking = message.id == DRAFT_ID && message.content.isEmpty(),
+                                onCopied = viewModel::notifyCopied,
                             )
                         }
                     }
@@ -263,7 +264,7 @@ fun ChatScreen(
 }
 
 @Composable
-private fun MessageCard(message: ChatMessage, thinking: Boolean) {
+private fun MessageCard(message: ChatMessage, thinking: Boolean, onCopied: () -> Unit) {
     val isUser = message.role == "user"
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -322,7 +323,7 @@ private fun MessageCard(message: ChatMessage, thinking: Boolean) {
             CopyButton(
                 text = message.content,
                 alignEnd = isUser,
-                onCopied = viewModel::notifyCopied,
+                onCopied = onCopied,
             )
         }
     }

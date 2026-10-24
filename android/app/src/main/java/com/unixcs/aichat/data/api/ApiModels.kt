@@ -21,7 +21,7 @@ internal data class UpdateProfileRequest(
 )
 
 @Serializable
-internal data class RedeemResponse(val profile: UserProfile = UserProfile())
+data class RedeemResponse(val profile: UserProfile = UserProfile())
 
 /** Null fields are dropped by Json(explicitNulls = false) on the wire. */
 @Serializable

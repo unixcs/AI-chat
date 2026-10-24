@@ -59,21 +59,27 @@ class SettingsViewModel(
     }
 
     fun redeem(code: String, onProfileUpdated: (UserProfile) -> Unit) {
-        execute { withTokenAndReport { token -> accountRepo.redeem(token, code) } } { profile ->
-            onProfileUpdated(profile)
-        }
+        execute(
+            call = { withTokenAndReport { token -> accountRepo.redeem(token, code) } },
+            onSuccess = onProfileUpdated,
+        )
     }
 
-    fun updateNickname(nickname: String, currentProfile: UserProfile?, onProfileUpdated: (UserProfile) -> Unit) {
-        execute {
-            withTokenAndReport { token ->
-                // avatarUrl is a full overwrite on the backend: echo the
-                // current value so a nickname-only edit never wipes it.
-                accountRepo.updateProfile(token, nickname, currentProfile?.avatarUrl ?: "")
-            }
-        } { profile ->
-            onProfileUpdated(profile)
-        }
+    fun updateNickname(
+        nickname: String,
+        currentProfile: UserProfile?,
+        onProfileUpdated: (UserProfile) -> Unit,
+    ) {
+        execute(
+            call = {
+                withTokenAndReport { token ->
+                    // avatarUrl is a full overwrite on the backend: echo the
+                    // current value so a nickname-only edit never wipes it.
+                    accountRepo.updateProfile(token, nickname, currentProfile?.avatarUrl ?: "")
+                }
+            },
+            onSuccess = onProfileUpdated,
+        )
     }
 
     private fun execute(

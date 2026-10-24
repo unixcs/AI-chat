@@ -3,6 +3,7 @@ package com.unixcs.aichat.ui.settings
 import com.unixcs.aichat.data.api.ApiClient
 import com.unixcs.aichat.data.api.ApiResult
 import com.unixcs.aichat.data.api.UserProfile
+import com.unixcs.aichat.data.api.map
 
 /**
  * Account maintenance calls that are not part of the streaming chat path:
