@@ -65,7 +65,7 @@ import com.unixcs.aichat.ui.announcement.AnnouncementViewModel
 import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.components.DrawerShell
 import com.unixcs.aichat.ui.components.MarkdownText
-import com.unixcs.aichat.ui.components.ShellSpring
+import com.unixcs.aichat.ui.components.settleTo
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -127,7 +127,9 @@ fun ChatScreen(
     // no NaN-anchor state machine — the class of wedge that froze the drawer.
     DrawerShell(
         progress = drawerProgress,
-        onDismiss = { scope.launch { drawerProgress.animateTo(0f, ShellSpring) } },
+        // settleTo carries the watchdog: even if the frame clock stalls, the
+        // drawer always lands fully open or fully closed — never wedged.
+        onDismiss = { scope.launch { drawerProgress.settleTo(0f) } },
         sheet = {
             HistoryDrawerContent(
                 conversations = conversations,
@@ -136,17 +138,17 @@ fun ChatScreen(
                 bulkProgress = bulkDelete,
                 onNewChat = {
                     viewModel.startNewChat()
-                    scope.launch { drawerProgress.animateTo(0f, ShellSpring) }
+                    scope.launch { drawerProgress.settleTo(0f) }
                 },
                 onSelect = { conversationId ->
                     viewModel.openConversation(conversationId)
-                    scope.launch { drawerProgress.animateTo(0f, ShellSpring) }
+                    scope.launch { drawerProgress.settleTo(0f) }
                 },
                 onRename = viewModel::renameConversation,
                 onDelete = viewModel::deleteConversation,
                 onDeleteMany = viewModel::deleteConversations,
                 onOpenSettings = {
-                    scope.launch { drawerProgress.animateTo(0f, ShellSpring) }
+                    scope.launch { drawerProgress.settleTo(0f) }
                     onOpenSettings()
                 },
             )
@@ -163,7 +165,7 @@ fun ChatScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerProgress.animateTo(1f, ShellSpring) } }) {
+                        IconButton(onClick = { scope.launch { drawerProgress.settleTo(1f) } }) {
                             Icon(Icons.Default.Menu, contentDescription = "打开历史")
                         }
                     },
@@ -274,7 +276,9 @@ fun ChatScreen(
             onLengthChange = viewModel::setAnswerLength,
             onStyleChange = viewModel::setAnswerStyle,
             onFormatChange = viewModel::setAnswerFormat,
-            onDismiss = { showPreferences = false },
+            // Gesture closes land at 0 inside the shell and report back here;
+            // without this the boolean stayed true and the button died.
+            onClosed = { showPreferences = false },
         )
     }
 

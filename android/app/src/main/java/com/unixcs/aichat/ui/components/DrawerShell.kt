@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,12 +35,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Settle/open/close spring shared by the hand-rolled shells: quick, no
@@ -53,23 +59,70 @@ val ShellSpring: SpringSpec<Float> = spring(
 internal const val SETTLE_THRESHOLD = 0.5f
 
 /**
+ * A release faster than this (dp/s) settles in the flick direction regardless
+ * of position — the m3/DeepSeek feel. A pure position threshold ignored
+ * velocity, so a light quick swipe bounced back open. 150dp/s ≈ a light quick
+ * flick on real hardware; slower releases fall back to the position rule.
+ */
+internal const val FLICK_VELOCITY = 150
+
+/**
+ * Release target, position- and velocity-aware: a quick flick settles in the
+ * flick direction regardless of position — the m3/DeepSeek feel, and the fix
+ * for the bounce-back bug (a light quick left-swipe from the open drawer must
+ * close instead of springing back). Drawer semantics only; BottomSheetShell
+ * maps vertical velocities itself (up = show, down = hide). Idle taps never
+ * reach this: a tap does not cross drag slop, so no release handler fires.
+ */
+internal fun settleTarget(value: Float, velocity: Float, flickPx: Float): Float = when {
+    velocity > flickPx -> 1f
+    velocity < -flickPx -> 0f
+    else -> if (value > SETTLE_THRESHOLD) 1f else 0f
+}
+
+/**
+ * Watchdog window for one settle. If the frame clock stalls (OEM-side hiccups
+ * are the recurring "blank frozen screen" class), the animation coroutine
+ * would otherwise never complete and the overlay stays mounted, input-eating
+ * and half-visible forever. On timeout the stuck animation is cancelled and
+ * [Animatable.snapTo] — a plain state write that needs no frames — finishes
+ * the transition, so an unrecoverable intermediate state cannot exist.
+ */
+private const val SETTLE_WATCHDOG_MS = 1_200L
+
+/**
+ * Settle [progress] to [target] with the watchdog. Cancel-safe: outer scope
+ * cancellation propagates normally.
+ */
+suspend fun Animatable<Float, *>.settleTo(target: Float) {
+    try {
+        withTimeout(SETTLE_WATCHDOG_MS) {
+            animateTo(target, ShellSpring)
+        }
+    } catch (_: TimeoutCancellationException) {
+        // A newer settle may have taken the animation over between the timeout
+        // and here; only finish the anchor ourselves if nothing is animating,
+        // so the watchdog can never override the user's latest request.
+        if (!isRunning) snapTo(target)
+    }
+}
+
+/**
  * Hand-rolled modal drawer. Deliberately replaces material3's
  * ModalNavigationDrawer: that component rides AnchoredDraggableState, whose
- * offset is NaN until anchors are set, and it also hooks predictive-back —
- * on real devices (m3 1.3.0 and 1.3.1 both) it produced blank frozen screens
- * escapable only by killing the app, most reproducibly right after a theme
- * switch (enableEdgeToEdge re-asserts window flags in the same frame window).
- * A single Animatable progress (0 = closed, 1 = open) has no state machine to
- * wedge, and back handling is a plain BackHandler we own.
+ * offset is NaN until anchors are set — on real devices it produced blank
+ * frozen screens escapable only by killing the app. A single Animatable
+ * progress (0 = closed, 1 = open) has no state machine to wedge.
  *
- * Must wrap the whole chat Scaffold (including its bottom bar) so the scrim
- * covers the input row. The main content stays put underneath — DeepSeek
- * style: only the scrim fades and the sheet slides in.
+ * Recomposition discipline: per-frame values are read ONLY inside
+ * graphicsLayer lambdas (draw phase). The few boolean reads in composition go
+ * through derivedStateOf so they flip once per transition, not once per
+ * frame — this shell wraps the whole chat Scaffold, and per-frame recomposition
+ * here used to recompose the entire chat tree (the reported jank).
  *
- * Drag lifecycle care: the edge hotspot would normally leave composition the
- * moment progress leaves 0, cancelling the in-flight gesture; an
- * [SETTLE_THRESHOLD]-style dragging flag keeps it mounted until release, and
- * release always settles open or closed — never stranded half-way.
+ * Drag lifecycle care: the edge hotspot stays mounted while its drag runs
+ * ([edgeDragging]); release always settles open or closed, velocity-aware,
+ * with the [settleTo] watchdog — never stranded half-way.
  *
  * Accessibility: while the drawer is open the covered content drops its
  * semantics, and while closed the off-screen panel drops its own, so TalkBack
@@ -89,18 +142,20 @@ fun DrawerShell(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val widthPxState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val flickPx = with(density) { FLICK_VELOCITY.dp.toPx() }
+    val widthPxState = remember { mutableFloatStateOf(0f) }
+    val tracker = remember { VelocityTracker() }
     // Keeps the edge hotspot mounted while its drag is running: unmounting
     // mid-gesture would cancel the pointer stream and strand the drawer.
     var edgeDragging by remember { mutableStateOf(false) }
 
-    fun settle() {
-        scope.launch {
-            progress.animateTo(
-                if (progress.value > SETTLE_THRESHOLD) 1f else 0f,
-                ShellSpring,
-            )
-        }
+    // Boolean projections of progress: recompose only when they flip.
+    val open by remember { derivedStateOf { progress.value > 0f } }
+    val closed by remember { derivedStateOf { progress.value == 0f } }
+    val covered by remember { derivedStateOf { progress.value > SETTLE_THRESHOLD } }
+
+    fun settle(velocity: Float) {
+        scope.launch { progress.settleTo(settleTarget(progress.value, velocity, flickPx)) }
     }
 
     // Reads progress.value INSIDE the coroutine: pointer events are batched
@@ -115,7 +170,7 @@ fun DrawerShell(
         }
     }
 
-    BackHandler(enabled = progress.value > 0f) { onDismiss() }
+    BackHandler(enabled = open) { onDismiss() }
 
     Box(
         Modifier
@@ -131,20 +186,18 @@ fun DrawerShell(
         Box(
             Modifier
                 .fillMaxSize()
-                .then(
-                    if (progress.value > 0.5f) {
-                        Modifier.clearAndSetSemantics {}
-                    } else {
-                        Modifier
-                    },
-                ),
+                .then(if (covered) Modifier.clearAndSetSemantics {} else Modifier),
         ) {
             content()
         }
 
         // Left-edge hotspot: drag right to reveal. Vertical gestures win by
         // directional slop, so chat list scrolling stays untouched.
-        if ((progress.value == 0f || edgeDragging) && widthPxState.floatValue > 0f) {
+        if ((closed || edgeDragging) && widthPxState.floatValue > 0f) {
+            // If this node is disposed mid-drag (structural recomposition,
+            // activity pause), neither onDragEnd nor onDragCancel runs — clear
+            // the latch so the hotspot cannot stay phantom-mounted.
+            DisposableEffect(Unit) { onDispose { edgeDragging = false } }
             Box(
                 modifier = Modifier
                     .zIndex(1f)
@@ -155,16 +208,22 @@ fun DrawerShell(
                     // resize would strand an in-flight drag without settle.
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
-                            onDragStart = { edgeDragging = true },
+                            onDragStart = {
+                                tracker.resetTracking()
+                                edgeDragging = true
+                            },
                             onDragEnd = {
                                 edgeDragging = false
-                                settle()
+                                settle(tracker.calculateVelocity().x)
+                                tracker.resetTracking()
                             },
                             onDragCancel = {
                                 edgeDragging = false
-                                settle()
+                                settle(0f)
+                                tracker.resetTracking()
                             },
                         ) { change, dragAmount ->
+                            tracker.addPosition(change.uptimeMillis, change.position)
                             if (dragAmount > 0) {
                                 change.consume()
                                 dragTo(dragAmount, widthPxState.floatValue)
@@ -175,7 +234,7 @@ fun DrawerShell(
             )
         }
 
-        if (progress.value > 0f) {
+        if (open) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -188,9 +247,17 @@ fun DrawerShell(
                     }
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
-                            onDragEnd = { settle() },
-                            onDragCancel = { settle() },
+                            onDragStart = { tracker.resetTracking() },
+                            onDragEnd = {
+                                settle(tracker.calculateVelocity().x)
+                                tracker.resetTracking()
+                            },
+                            onDragCancel = {
+                                settle(0f)
+                                tracker.resetTracking()
+                            },
                         ) { change, dragAmount ->
+                            tracker.addPosition(change.uptimeMillis, change.position)
                             // Only a leftward drag dismisses; a rightward drag
                             // would fight the sheet's own edge.
                             if (dragAmount < 0) {
@@ -222,13 +289,21 @@ fun DrawerShell(
                     .then(
                         // Off-screen panel is invisible: drop its semantics so
                         // TalkBack cannot focus hidden drawer content.
-                        if (progress.value > 0.5f) Modifier else Modifier.clearAndSetSemantics {},
+                        if (covered) Modifier else Modifier.clearAndSetSemantics {},
                     )
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
-                            onDragEnd = { settle() },
-                            onDragCancel = { settle() },
+                            onDragStart = { tracker.resetTracking() },
+                            onDragEnd = {
+                                settle(tracker.calculateVelocity().x)
+                                tracker.resetTracking()
+                            },
+                            onDragCancel = {
+                                settle(0f)
+                                tracker.resetTracking()
+                            },
                         ) { change, dragAmount ->
+                            tracker.addPosition(change.uptimeMillis, change.position)
                             if (dragAmount < 0) {
                                 change.consume()
                                 dragTo(dragAmount, widthPxState.floatValue)

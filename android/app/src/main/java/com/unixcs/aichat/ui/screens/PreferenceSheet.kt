@@ -18,20 +18,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.unixcs.aichat.data.prefs.ChatPreferences
 import com.unixcs.aichat.data.prefs.PreferenceOptions
 import com.unixcs.aichat.ui.components.BottomSheetShell
-import com.unixcs.aichat.ui.components.ShellSpring
-import kotlinx.coroutines.launch
+import com.unixcs.aichat.ui.components.settleTo
 
 /**
  * Three-dimension answer preference editor. Tapping a chip saves immediately;
  * there is no explicit "apply" step, matching the web settings sheet. Rides
  * the hand-rolled [BottomSheetShell]: material3's ModalBottomSheet shares the
  * AnchoredDraggable machinery that froze drawers on real devices.
+ *
+ * Open and close both go through the watchdogged settle, and every gesture
+ * close lands at 0 and reports back through [onClosed] — the caller's boolean
+ * can never stay stale, which is what killed the preference button after one
+ * dismissal.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -40,18 +43,17 @@ fun PreferenceSheet(
     onLengthChange: (String) -> Unit,
     onStyleChange: (String) -> Unit,
     onFormatChange: (String) -> Unit,
-    onDismiss: () -> Unit,
+    onClosed: () -> Unit,
 ) {
     val progress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        progress.animateTo(1f, ShellSpring)
+        progress.settleTo(1f)
     }
 
     BottomSheetShell(
         progress = progress,
-        onDismiss = { scope.launch { progress.animateTo(0f, ShellSpring) } },
+        onClosed = onClosed,
         sheet = {
             Column(
                 modifier = Modifier
