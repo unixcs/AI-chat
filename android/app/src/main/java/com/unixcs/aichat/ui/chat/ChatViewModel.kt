@@ -14,12 +14,14 @@ import com.unixcs.aichat.data.prefs.ChatPreferences
 import com.unixcs.aichat.data.prefs.PreferencesRepository
 import com.unixcs.aichat.data.session.SessionStore
 import com.unixcs.aichat.data.settings.AppSettingsStore
+import com.unixcs.aichat.ui.settings.AppearanceState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -56,6 +58,22 @@ class ChatViewModel(
     /** Device-local toggle: hide the preference entry from the chat top bar. */
     val showPreferenceEntry: StateFlow<Boolean> = settings.showPreferenceEntry
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** Appearance (theme mode + accent), read straight from DataStore. */
+    val appearance: StateFlow<AppearanceState> = combine(
+        settings.themeMode,
+        settings.themeColor,
+    ) { mode, color -> AppearanceState(mode, color) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppearanceState())
+
+    /** One-tap light/dark switch on the chat top bar. */
+    fun toggleDarkMode() {
+        val next = if (appearance.value.themeMode == "dark") "light" else "dark"
+        viewModelScope.launch { settings.setThemeMode(next) }
+    }
+
+    /** Clipboard feedback hook; reserved for future telemetry/haptics polish. */
+    fun notifyCopied() = Unit
 
     val conversations: StateFlow<List<ChatConversation>> = dao.observeConversations()
         .map { list ->

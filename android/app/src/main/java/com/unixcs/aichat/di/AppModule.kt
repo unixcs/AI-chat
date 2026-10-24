@@ -14,6 +14,8 @@ import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.backup.BackupViewModel
 import com.unixcs.aichat.ui.session.SessionViewModel
 import com.unixcs.aichat.ui.login.LoginViewModel
+import com.unixcs.aichat.ui.settings.AccountRepository
+import com.unixcs.aichat.ui.settings.SettingsViewModel
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -66,9 +68,11 @@ val appModule = module {
     single { get<AppDatabase>().chatDao() }
     single { ChatStreamClient(BuildConfig.API_BASE_URL, get(named(STREAM_CLIENT)), get()) }
     single { ChatRepository(get(), get(), get()) }
+    single { AccountRepository(get()) }
 
     viewModel { LoginViewModel(get()) }
     viewModel { SessionViewModel(get(), get()) }
     viewModel { ChatViewModel(get(), get(), get(), get(), get()) }
     viewModel { BackupViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
 }

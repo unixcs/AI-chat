@@ -1,5 +1,8 @@
 package com.unixcs.aichat.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +34,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -53,9 +57,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.unixcs.aichat.R
 import com.unixcs.aichat.data.chat.ChatMessage
 import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.components.MarkdownText
@@ -73,6 +80,7 @@ fun ChatScreen(
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val showPreferenceEntry by viewModel.showPreferenceEntry.collectAsStateWithLifecycle()
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -133,7 +141,7 @@ fun ChatScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = ui.title.ifBlank { "AI-chat" },
+                            text = ui.title.ifBlank { "塔罗" },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -144,6 +152,15 @@ fun ChatScreen(
                         }
                     },
                     actions = {
+                        // Quick light/dark toggle, DeepSeek-style one-tap switch.
+                        IconButton(onClick = viewModel::toggleDarkMode) {
+                            Icon(
+                                painter = painterResource(
+                                    if (appearance.themeMode == "dark") R.drawable.ic_sun else R.drawable.ic_moon,
+                                ),
+                                contentDescription = if (appearance.themeMode == "dark") "切换浅色" else "切换深色",
+                            )
+                        }
                         if (showPreferenceEntry) {
                             TextButton(onClick = { showPreferences = true }) {
                                 Text("偏好")
@@ -219,11 +236,11 @@ fun ChatScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         items(display, key = { it.id }) { message ->
-                            MessageBubble(
+                            MessageCard(
                                 message = message,
                                 thinking = message.id == DRAFT_ID && message.content.isEmpty(),
                             )
@@ -246,56 +263,103 @@ fun ChatScreen(
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage, thinking: Boolean) {
+private fun MessageCard(message: ChatMessage, thinking: Boolean) {
     val isUser = message.role == "user"
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        ) {
+            Surface(
+                color = if (isUser) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                shape = RoundedCornerShape(
+                    topStart = 20.dp,
+                    topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 6.dp,
+                    bottomEnd = if (isUser) 6.dp else 20.dp,
+                ),
+                modifier = Modifier.widthIn(max = 340.dp),
+            ) {
+                if (thinking) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            text = "正在思考…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (isUser || message.id == DRAFT_ID) {
+                    // While streaming, render plain text: re-parsing Markdown on
+                    // every delta is what made the web client stutter. The final
+                    // persisted message is rendered as Markdown.
+                    SelectionContainer {
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                } else {
+                    MarkdownText(
+                        markdown = message.content,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
+        // Action bar sits below the bubble (DeepSeek/ChatGPT pattern): copy is
+        // one tap away without stealing long-press selection inside the text.
+        if (!thinking && message.content.isNotEmpty()) {
+            CopyButton(
+                text = message.content,
+                alignEnd = isUser,
+                onCopied = viewModel::notifyCopied,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CopyButton(text: String, alignEnd: Boolean, onCopied: () -> Unit) {
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        horizontalArrangement = if (alignEnd) Arrangement.End else Arrangement.Start,
     ) {
-        Surface(
-            color = if (isUser) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
+        IconButton(
+            onClick = {
+                val clipboard =
+                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("message", text))
+                copied = true
+                onCopied()
             },
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isUser) 16.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 16.dp,
+            modifier = Modifier.size(32.dp),
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
-            modifier = Modifier.widthIn(max = 340.dp),
         ) {
-            if (thinking) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        text = "正在思考…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else if (isUser || message.id == DRAFT_ID) {
-                // While streaming, render plain text: re-parsing Markdown on
-                // every delta is what made the web client stutter. The final
-                // persisted message is rendered as Markdown.
-                SelectionContainer {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    )
-                }
-            } else {
-                MarkdownText(
-                    markdown = message.content,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                )
-            }
+            Icon(
+                painter = painterResource(if (copied) R.drawable.ic_check else R.drawable.ic_copy),
+                contentDescription = if (copied) "已复制" else "复制",
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+    if (copied) {
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1500)
+            copied = false
         }
     }
 }

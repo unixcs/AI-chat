@@ -144,4 +144,74 @@ class ApiClientTest {
         assertTrue(result is ApiResult.Failure)
         assertEquals("服务器响应异常", (result as ApiResult.Failure).message)
     }
+
+    @Test
+    fun redeemPostsCodeAndReturnsRefreshedProfile() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {"code":0,"data":{"profile":{
+                      "id":"u1","phone":"13800138000","nickname":"tester",
+                      "memberExpireAt":"2027-02-01T00:00:00.000Z"
+                    }}}
+                    """.trimIndent(),
+                ),
+        )
+
+        val result = api.redeem("jwt-abc", "  TAROT-2026-XXXX  ")
+
+        assertTrue(result is ApiResult.Success)
+        val profile = (result as ApiResult.Success<RedeemResponse>).data.profile
+        assertEquals("2027-02-01T00:00:00.000Z", profile.memberExpireAt)
+
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals("/api/user/redeem", recorded.path)
+        assertEquals("Bearer jwt-abc", recorded.getHeader("Authorization"))
+        assertEquals("""{"code":"TAROT-2026-XXXX"}""", recorded.body.readUtf8())
+    }
+
+    @Test
+    fun redeemServerErrorsSurfaceTheirMessage() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(400).setBody("""{"message":"兑换码已失效或已使用"}"""),
+        )
+
+        val result = api.redeem("jwt-abc", "used-code")
+
+        assertTrue(result is ApiResult.Failure)
+        result as ApiResult.Failure
+        assertEquals(400, result.status)
+        assertEquals("兑换码已失效或已使用", result.message)
+    }
+
+    @Test
+    fun updateProfileSendsNicknameAndEchoesAvatar() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {"code":0,"data":{
+                      "id":"u1","phone":"13800138000","nickname":"新昵称",
+                      "avatarUrl":"https://example.test/a.png"
+                    }}
+                    """.trimIndent(),
+                ),
+        )
+
+        val result = api.updateProfile("jwt-abc", "新昵称", "https://example.test/a.png")
+
+        assertTrue(result is ApiResult.Success)
+        assertEquals("新昵称", (result as ApiResult.Success<UserProfile>).data.nickname)
+
+        val recorded = server.takeRequest()
+        assertEquals("PUT", recorded.method)
+        assertEquals("/api/user/profile", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue(body.contains("\"nickname\":\"新昵称\""))
+        assertTrue(body.contains("\"avatarUrl\":\"https://example.test/a.png\""))
+    }
 }

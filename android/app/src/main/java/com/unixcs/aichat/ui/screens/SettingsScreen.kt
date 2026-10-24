@@ -5,12 +5,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,13 +44,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unixcs.aichat.BuildConfig
+import com.unixcs.aichat.R
 import com.unixcs.aichat.data.api.UserProfile
 import com.unixcs.aichat.ui.backup.BackupViewModel
+import com.unixcs.aichat.ui.settings.SettingsViewModel
+import com.unixcs.aichat.ui.theme.AccentPalettes
+import com.unixcs.aichat.ui.theme.ThemeMode
 import com.unixcs.aichat.ui.util.maskPhone
 import java.time.LocalDate
 import org.koin.androidx.compose.koinViewModel
@@ -55,21 +64,28 @@ private enum class BackupAction { Export, Import }
 
 // Phase 1: account + logout. Phase 4 adds the preference-visibility switch;
 // Phase 5 adds encrypted export/import; Phase 6 shows the production endpoint.
-@OptIn(ExperimentalMaterial3Api::class)
+// R15 adds redeem-code top-up, nickname editing, and appearance settings.
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     profile: UserProfile?,
     showPreferenceEntry: Boolean,
     onShowPreferenceEntryChange: (Boolean) -> Unit,
+    onProfileUpdated: (UserProfile) -> Unit,
     onLogout: () -> Unit,
     onBack: () -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var dialogAction by remember { mutableStateOf<BackupAction?>(null) }
     var pendingPassword by remember { mutableStateOf<CharArray?>(null) }
+    var showRedeemDialog by remember { mutableStateOf(false) }
+    var showNicknameDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val backupViewModel: BackupViewModel = koinViewModel()
     val backupState by backupViewModel.ui.collectAsStateWithLifecycle()
+    val settingsViewModel: SettingsViewModel = koinViewModel()
+    val accountState by settingsViewModel.account.collectAsStateWithLifecycle()
+    val appearance by settingsViewModel.appearance.collectAsStateWithLifecycle()
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -99,6 +115,12 @@ fun SettingsScreen(
         backupViewModel.consumeMessage(message)
     }
 
+    LaunchedEffect(accountState.message) {
+        val message = accountState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        settingsViewModel.consumeMessage(message)
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -121,6 +143,18 @@ fun SettingsScreen(
         ) {
             SectionTitle("账户")
             ListItem(
+                headlineContent = { Text("昵称") },
+                supportingContent = {
+                    Text(profile?.nickname?.takeIf { it.isNotBlank() } ?: "未设置昵称")
+                },
+                trailingContent = {
+                    TextButton(onClick = { showNicknameDialog = true }, enabled = !accountState.busy) {
+                        Text("修改")
+                    }
+                },
+            )
+            HorizontalDivider()
+            ListItem(
                 headlineContent = { Text("当前账号") },
                 supportingContent = {
                     Text(
@@ -136,12 +170,72 @@ fun SettingsScreen(
                     Text(profile?.memberExpireAt?.take(10)?.takeIf { it.isNotBlank() } ?: "未开通")
                 },
             )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("兑换码充值") },
+                supportingContent = { Text("输入卡密为会员续期，兑换后立即生效。") },
+                trailingContent = {
+                    TextButton(onClick = { showRedeemDialog = true }, enabled = !accountState.busy) {
+                        Text("去兑换")
+                    }
+                },
+            )
             OutlinedButton(
                 onClick = { confirmLogout = true },
                 modifier = Modifier.padding(vertical = 16.dp),
             ) {
                 Text("退出登录", color = MaterialTheme.colorScheme.error)
             }
+
+            SectionTitle("外观")
+            ListItem(
+                headlineContent = { Text("深色模式") },
+                supportingContent = { Text("聊天页顶部可一键切换深浅色。") },
+            )
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ThemeMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = appearance.themeMode == mode.key,
+                        onClick = { settingsViewModel.setThemeMode(mode.key) },
+                        label = { Text(mode.label) },
+                    )
+                }
+            }
+            HorizontalDivider()
+            Text(
+                text = "主题色",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AccentPalettes.forEach { palette ->
+                    FilterChip(
+                        selected = appearance.themeColor == palette.key,
+                        onClick = { settingsViewModel.setThemeColor(palette.key) },
+                        label = { Text(palette.label) },
+                        leadingIcon = if (appearance.themeColor == palette.key) {
+                            {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
 
             SectionTitle("对话")
             ListItem(
@@ -258,6 +352,117 @@ fun SettingsScreen(
             },
         )
     }
+
+    if (showRedeemDialog) {
+        RedeemDialog(
+            busy = accountState.busy,
+            onDismiss = { showRedeemDialog = false },
+            onConfirm = { code ->
+                settingsViewModel.redeem(code, onProfileUpdated)
+                showRedeemDialog = false
+            },
+        )
+    }
+
+    if (showNicknameDialog) {
+        NicknameDialog(
+            current = profile?.nickname.orEmpty(),
+            busy = accountState.busy,
+            onDismiss = { showNicknameDialog = false },
+            onConfirm = { nickname ->
+                settingsViewModel.updateNickname(nickname, profile, onProfileUpdated)
+                showNicknameDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun RedeemDialog(
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var code by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("兑换码充值") },
+        text = {
+            Column {
+                Text(
+                    text = "输入获得的卡密。兑换成功后会员时长立即累加，兑换码只能使用一次。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text("兑换码") },
+                    singleLine = true,
+                    enabled = !busy,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(code.trim()) },
+                enabled = !busy && code.isNotBlank(),
+            ) {
+                Text("兑换")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text("取消")
+            }
+        },
+    )
+}
+
+@Composable
+private fun NicknameDialog(
+    current: String,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var nickname by remember { mutableStateOf(current) }
+    val changed = nickname.trim() != current && nickname.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("修改昵称") },
+        text = {
+            Column {
+                Text(
+                    text = "昵称用于展示，最多 50 个字符；留空则保持原昵称不变。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    label = { Text("昵称") },
+                    singleLine = true,
+                    enabled = !busy,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(nickname.trim()) },
+                enabled = !busy && changed,
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 @Composable

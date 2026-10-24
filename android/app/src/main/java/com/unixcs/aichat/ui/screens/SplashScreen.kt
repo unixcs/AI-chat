@@ -24,7 +24,7 @@ fun SplashScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "AI-chat",
+                text = "塔罗 Tarot",
                 style = MaterialTheme.typography.headlineLarge,
             )
             Spacer(Modifier.height(24.dp))

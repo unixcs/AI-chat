@@ -83,6 +83,31 @@ class ApiClient(
             token = token,
         )
 
+    /** Redeem a card code; the backend returns the refreshed profile. */
+    suspend fun redeem(token: String, code: String): ApiResult<RedeemResponse> =
+        post(
+            path = "/api/user/redeem",
+            body = json.encodeToString(RedeemRequest(code = code.trim())),
+            token = token,
+        )
+
+    /**
+     * Full-overwrite profile update: the backend keeps the old nickname only
+     * when the new one is blank, and always stores the given avatarUrl.
+     */
+    suspend fun updateProfile(
+        token: String,
+        nickname: String,
+        avatarUrl: String,
+    ): ApiResult<UserProfile> =
+        put(
+            path = "/api/user/profile",
+            body = json.encodeToString(
+                UpdateProfileRequest(nickname = nickname, avatarUrl = avatarUrl),
+            ),
+            token = token,
+        )
+
     private suspend inline fun <reified T> get(path: String, token: String): ApiResult<T> {
         val request = Request.Builder()
             .url(baseUrl + path)

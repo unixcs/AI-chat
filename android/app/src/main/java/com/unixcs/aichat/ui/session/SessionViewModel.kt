@@ -72,6 +72,12 @@ class SessionViewModel(
         viewModelScope.launch { repo.logout() }
     }
 
+    /** Profile edits (nickname, redeem top-up) land here to refresh all screens. */
+    fun onProfileUpdated(profile: UserProfile) {
+        _profile.value = profile
+        viewModelScope.launch { store.savePhone(profile.phone) }
+    }
+
     private suspend fun resolveCachedSession(token: String) {
         when (val result = repo.fetchProfile(token)) {
             is ApiResult.Success -> {

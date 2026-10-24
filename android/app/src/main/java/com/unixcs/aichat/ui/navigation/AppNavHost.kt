@@ -41,6 +41,7 @@ fun AppRoot(sessionViewModel: SessionViewModel = koinViewModel<SessionViewModel>
 
         SessionState.LoggedIn -> AppNavHost(
             profile = profile,
+            onProfileUpdated = sessionViewModel::onProfileUpdated,
             onLogout = sessionViewModel::logout,
         )
     }
@@ -49,6 +50,7 @@ fun AppRoot(sessionViewModel: SessionViewModel = koinViewModel<SessionViewModel>
 @Composable
 private fun AppNavHost(
     profile: UserProfile?,
+    onProfileUpdated: (UserProfile) -> Unit,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
@@ -73,6 +75,7 @@ private fun AppNavHost(
                 profile = profile,
                 showPreferenceEntry = showPreferenceEntry,
                 onShowPreferenceEntryChange = chatViewModel::setPreferenceEntryVisible,
+                onProfileUpdated = onProfileUpdated,
                 onLogout = onLogout,
                 onBack = { navController.popBackStack() },
             )

@@ -11,6 +11,18 @@ internal data class LoginRequest(
 @Serializable
 internal data class RenameConversationRequest(val title: String)
 
+@Serializable
+internal data class RedeemRequest(val code: String)
+
+@Serializable
+internal data class UpdateProfileRequest(
+    val nickname: String,
+    val avatarUrl: String,
+)
+
+@Serializable
+internal data class RedeemResponse(val profile: UserProfile = UserProfile())
+
 /** Null fields are dropped by Json(explicitNulls = false) on the wire. */
 @Serializable
 internal data class PreferencesUpdate(
