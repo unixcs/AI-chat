@@ -1,10 +1,10 @@
 # AI Chat Android 客户端
 
-原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.0.0（versionCode 7）**，包名 `com.unixcs.aichat`。
+原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.1.0（versionCode 8）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
 
-- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.0.0>
-- APK：`aichat-1.0.0.apk`，8,975,733 字节
-- SHA-256：`a7554786891d5bacc24ce96925d898fd9bcc831bb6333dea98552cede220a61d`
+- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.1.0>
+- APK：`aichat-1.1.0.apk`，8,994,657 字节
+- SHA-256：`9d51933f8f2be7729ef0b58a19e73c7d2fbeb676e563b41f6fd0dfe2e3bc1126`
 
 ## 功能
 
@@ -13,16 +13,19 @@
 - AI 回复 Markdown 渲染：标题、列表、引用、代码块、行内样式、链接（流式过程中先按纯文本显示，结束后再渲染）
 - 抽屉式历史：按时间分组、搜索、重命名、删除
 - 回答偏好：长度 / 风格 / 输出格式三维度组合，发送时即时生效；可隐藏聊天页入口
-- 个人资料、会员到期、卡密充值入口、修改密码（跳转网页版对应页面）
+- 账户中心：昵称修改（APP 内直改）、兑换码充值（`POST /api/user/redeem`，成功后即时刷新会员信息）、会员到期展示
+- 消息快捷复制：气泡下方按钮，AI 消息在左下、用户消息在右下（DeepSeek 式镜像布局），点击后打勾反馈 1.5 秒
+- 深浅色快捷切换：聊天页顶部一键切换，设置内可选跟随系统/浅色/深色；状态栏前景色随深浅自动反转
+- 主题色：6 套柔和聊天色板（雾紫/星夜蓝/月白青/秘仪金/暮玫/松间绿），设置内即时切换，选择持久化
+- 品牌：应用名「塔罗 Tarot」，星月启动图标
 - 本地加密备份导出/导入（SAF 选择文件位置，AES-256-GCM）
-- 浅色 / 深色主题跟随系统
 
 ## 技术栈
 
 | 层 | 选型 |
 |---|---|
-| 语言 / UI | Kotlin 2.0.21、Jetpack Compose（BOM 2024.10.01）、Material 3 |
-| 架构 | MVVM + StateFlow + Navigation Compose 2.8.4 |
+| 语言 / UI | Kotlin 2.0.21、Jetpack Compose（BOM 2024.12.01，material3 1.3.1）、Material 3 |
+| 架构 | MVVM + StateFlow + Navigation Compose 2.8.5 |
 | 依赖注入 | Koin 4.0.0 |
 | 本地存储 | Room 2.6.1（KSP）+ DataStore Preferences |
 | 网络 | OkHttp 4.12、kotlinx-serialization 1.7.3 |
@@ -100,9 +103,15 @@ android/app/src/main/java/com/unixcs/aichat/
 ├─ data/backup/     # 备份格式、加解密、SAF 导入导出
 ├─ data/session/    # JWT 会话存储
 ├─ data/prefs/      # 偏好设置
+├─ data/settings/   # 外观设置（深浅模式、主题色，DataStore）
 ├─ di/              # Koin 模块
-└─ ui/              # 登录、聊天、历史抽屉、设置、备份、Markdown 渲染
+└─ ui/              # 登录、聊天、历史抽屉、设置、备份、主题、Markdown 渲染
 ```
+
+## 版本记录
+
+- **1.1.0（android-v1.1.0，2026-10-24）**：修复侧边栏抽屉概率性空白假死（升级 Compose BOM 至 2024.12.01 / material3 1.3.1）；新增兑换码充值与昵称修改（APP 内直连 `/api/user/redeem`、`PUT /api/user/profile`）；聊天页顶部深浅色快捷切换 + 设置内 6 套主题色；消息气泡下方快捷复制按钮（AI 左下/用户右下）；改名「塔罗 Tarot」+ 星月图标；历史抽屉与气泡圆角精修。
+- **1.0.0（android-v1.0.0，2026-10-24）**：首个正式版——登录、SSE 流式对话、历史抽屉、回答偏好、加密备份、会员展示。
 
 ## 已知边界
 
@@ -110,3 +119,4 @@ android/app/src/main/java/com/unixcs/aichat/
 - 备份只覆盖本机会话与消息，不含图片/附件（当前后端也没有附件能力）
 - 未接入推送；会员到期、公告更新需要打开 App 后刷新
 - 真机冒烟需人工完成：登录、流式对话、断网重连、历史重命名/删除、导出后清数据再导入、深色模式
+- R15 新功能（抽屉反复开合、兑换码、昵称修改、主题切换、复制按钮）尚待真机回归

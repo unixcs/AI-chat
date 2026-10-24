@@ -1,6 +1,6 @@
 # AI-Chat 当前状态总览
 
-> 更新时间：2026-10-24（服务器职责收口 + Android 1.0.0 发布；§0/§0.1 为最新权威，§1 及以后为 2026-09-05 历史记录）
+> 更新时间：2026-10-24（Android 1.1.0 发布；§0/§0.1/§0.2 为最新权威，§1 及以后为 2026-09-05 历史记录）
 
 ## 0. 服务器职责划分（2026-10-24 用户决定，最高优先级，实地核查确认）
 
@@ -52,6 +52,34 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 | 验证 | 切换前后表行数一致；仅备份副本预演迁移；`tools/health-yun.sh all` ALL GREEN；rename 未授权返回 401 |
 
 回滚方式：把 `docker-compose.override.yml` 中 backend 的 `image` 改回 `ai-chat-go-backend:prod-29bb956`，执行 `docker compose -p ai-chat up -d --no-build backend`。
+
+## 0.2 Android 1.1.0（R15 迭代，2026-10-24）
+
+### 发布
+
+| 项 | 值 |
+|---|---|
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.1.0>（tag 指向 `0f457a5`） |
+| APK | `aichat-1.1.0.apk`，8,994,657 字节 |
+| SHA-256 | `9d51933f8f2be7729ef0b58a19e73c7d2fbeb676e563b41f6fd0dfe2e3bc1126`（与 GitHub asset digest 一致） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.1.0`，versionCode `8`；应用名「塔罗 Tarot」 |
+| 签名 | APK Signing Block v2 已验证；keystore 复用 v1.0.0 同一密钥（GitHub Secrets） |
+| release 端点 | `http://121.41.192.80:8181`（生产）；已确认 APK dex 内不含测试地址 8189 |
+| CI | `Android_Debug` run 40049302809、`Android_Release` run 40049650672，均 success |
+| 后端改动 | 无——兑换码/昵称直接复用既有 `POST /api/user/redeem`、`PUT /api/user/profile` |
+
+### 功能范围（R15）
+
+1. **抽屉空白假死修复**：侧边栏概率性进入空白且返回手势失效，根因是 Compose BOM 2024.10.01 所带 material3 1.3.0 的 ModalNavigationDrawer 缺陷；升级 BOM 至 2024.12.01（material3 1.3.1）解决，抽屉代码本身未动。
+2. **兑换码充值 + 昵称修改**：设置页账户区新增两项；兑换走 `POST /api/user/redeem` 成功后用返回 profile 即时刷新会员信息；昵称走 `PUT /api/user/profile`，客户端回传现有 avatarUrl 以规避后端全量覆盖语义误清头像；401 统一回登录页。
+3. **深浅色 + 主题色**：聊天页顶栏一键深浅切换（DataStore 持久化）；设置页可选跟随系统/浅色/深色与 6 套柔和色板（雾紫/星夜蓝/月白青/秘仪金/暮玫/松间绿）；状态栏前景色随深浅自动反转。
+4. **消息快捷复制**：气泡下方按钮（气泡外，避免与长按选择冲突——沿用 R14 网页版教训），AI 消息左下、用户消息右下镜像布局，点击后打勾反馈 1.5 秒。
+5. **品牌与精修**：应用名改「塔罗 Tarot」，星月启动图标；历史抽屉条目 18dp 圆角、搜索框+新建按钮重排；气泡 20dp 圆角。
+
+### 未完成项
+
+- 真机冒烟（本环境无真机）：抽屉反复开合复现原 bug 场景、兑换码（yun1 有测试卡密则先测测试服）、昵称修改、主题切换与深浅切换、复制按钮、v1.0.0 覆盖安装。
+- Telegram 下载地址推送被阻塞：生产/yun1 容器与环境文件中不存在任何 TG bot token / chat id（符合「TG_BOT_TOKEN 仅环境变量，不进 Git」约定），需用户提供后才能推送。
 
 ## 1. 仓库和代码在哪儿
 

@@ -135,12 +135,12 @@ docker save ai-chat-go-frontend:latest | gzip -1 | ssh HOST 'gunzip | docker loa
 
 ## 7. Android 客户端
 
-原生 Kotlin + Jetpack Compose 客户端，与网页版共用同一套 `/api`。当前 **v1.0.0（versionCode 7，包名 `com.unixcs.aichat`）**。
+原生 Kotlin + Jetpack Compose 客户端「塔罗 Tarot」，与网页版共用同一套 `/api`。当前 **v1.1.0（versionCode 8，包名 `com.unixcs.aichat`）**。
 
-- 下载：[`android-v1.0.0`](https://github.com/unixcs/AI-chat/releases/tag/android-v1.0.0) · `aichat-1.0.0.apk`（8,975,733 字节）
-- SHA-256：`a7554786891d5bacc24ce96925d898fd9bcc831bb6333dea98552cede220a61d`
+- 下载：[`android-v1.1.0`](https://github.com/unixcs/AI-chat/releases/tag/android-v1.1.0) · `aichat-1.1.0.apk`（8,994,657 字节）
+- SHA-256：`9d51933f8f2be7729ef0b58a19e73c7d2fbeb676e563b41f6fd0dfe2e3bc1126`
 
-功能：登录、SSE 流式对话、Markdown 渲染、Room 本地历史、历史分组/搜索/重命名/删除、三维度回答偏好、个人资料与会员状态、AES-256-GCM 加密备份导入导出、深色模式。
+功能：登录、SSE 流式对话、Markdown 渲染、Room 本地历史、历史分组/搜索/重命名/删除、三维度回答偏好、昵称修改、兑换码充值、消息快捷复制（AI 左下/用户右下）、深浅色快捷切换 + 6 套柔和主题色、AES-256-GCM 加密备份导入导出、星月品牌图标。v1.1.0 同时修复了侧边栏抽屉概率性空白假死（Compose BOM 升至 2024.12.01）。
 
 服务器地址按构建类型隔离，debug 不会碰生产：
 
