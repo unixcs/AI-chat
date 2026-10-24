@@ -19,8 +19,8 @@ android {
         applicationId = "com.unixcs.aichat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.3.0"
+        versionCode = 11
+        versionName = "1.4.0"
     }
 
     signingConfigs {
@@ -73,10 +73,11 @@ android {
 }
 
 dependencies {
-    // R16: drawer/bottom-sheet freeze root-caused to material3's
-    // AnchoredDraggable-based components themselves (not a version bug);
-    // they are replaced by hand-rolled DrawerShell/BottomSheetShell.
-    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    // R18: back to the v1.0.0 baseline — material3's ModalNavigationDrawer /
+    // ModalBottomSheet (BOM 2024.10.01) with zero hand-rolled gesture shells.
+    // The R15 accent/theme machinery was the recurring freeze trigger and is
+    // gone entirely, so the drawer no longer races a full-tree recomposition.
+    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

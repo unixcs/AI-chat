@@ -108,24 +108,6 @@ class ApiClient(
             token = token,
         )
 
-    /**
-     * Newest unread announcement, or null when there is none — the backend
-     * answers `data: null` in that case, so this path must accept null data.
-     */
-    suspend fun currentAnnouncement(token: String): ApiResult<AnnouncementDto?> =
-        getNullable(path = "/api/announcements/current", token = token)
-
-    /**
-     * asOf echoes the announcement's updatedAt verbatim: the backend drops a
-     * stale ack when the admin replaced the content in between.
-     */
-    suspend fun ackAnnouncement(token: String, announcementId: String, asOf: String): ApiResult<Boolean> =
-        post(
-            path = "/api/announcements/$announcementId/ack",
-            body = json.encodeToString(AckAnnouncementRequest(asOf = asOf)),
-            token = token,
-        )
-
     private suspend inline fun <reified T> get(path: String, token: String): ApiResult<T> {
         val request = Request.Builder()
             .url(baseUrl + path)
@@ -133,16 +115,6 @@ class ApiClient(
             .get()
             .build()
         return execute(request)
-    }
-
-    /** Same as [get] but accepts a `data: null` envelope as a successful null. */
-    private suspend inline fun <reified T> getNullable(path: String, token: String): ApiResult<T?> {
-        val request = Request.Builder()
-            .url(baseUrl + path)
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return executeNullable(request)
     }
 
     private suspend inline fun <reified T> post(path: String, body: String, token: String?): ApiResult<T> {
@@ -198,39 +170,6 @@ class ApiClient(
                         envelope.data
                             ?: return@withContext ApiResult.Failure(response.code, "服务器响应异常"),
                     )
-                }
-            } catch (_: IOException) {
-                ApiResult.Failure(status = -1, message = "网络连接失败，请检查网络")
-            }
-        }
-
-    /**
-     * Nullable twin of [execute]: here `data: null` inside a code-0 envelope
-     * is a legitimate answer (the announcement endpoint signals "no unread
-     * announcement" exactly that way), not a malformed response.
-     */
-    private suspend inline fun <reified T> executeNullable(request: Request): ApiResult<T?> =
-        withContext(Dispatchers.IO) {
-            try {
-                client.newCall(request).execute().use { response ->
-                    val text = response.body?.string().orEmpty()
-                    if (!response.isSuccessful) {
-                        val error = decodeError(text)
-                        return@withContext ApiResult.Failure(
-                            status = response.code,
-                            message = error?.message ?: defaultMessage(response.code),
-                            code = error?.code,
-                        )
-                    }
-                    val envelope = decodeEnvelope<T>(text)
-                        ?: return@withContext ApiResult.Failure(response.code, "服务器响应异常")
-                    if (envelope.code != 0) {
-                        return@withContext ApiResult.Failure(
-                            status = response.code,
-                            message = envelope.message ?: "请求失败",
-                        )
-                    }
-                    ApiResult.Success(envelope.data)
                 }
             } catch (_: IOException) {
                 ApiResult.Failure(status = -1, message = "网络连接失败，请检查网络")

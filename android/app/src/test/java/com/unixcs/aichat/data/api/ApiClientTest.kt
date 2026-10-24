@@ -216,54 +216,8 @@ class ApiClientTest {
     }
 
     @Test
-    fun announcementCurrentParsesFields() = runTest {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """
-                    {"code":0,"data":{
-                      "id":"ann-1","title":"停机维护",
-                      "content":"周日 02:00-03:00 系统升级",
-                      "createdAt":"2026-10-23T10:00:00.000Z",
-                      "updatedAt":"2026-10-24T08:30:00.000Z"
-                    }}
-                    """.trimIndent(),
-                ),
-        )
-
-        val result = api.currentAnnouncement("jwt-abc")
-
-        assertTrue(result is ApiResult.Success)
-        val announcement = (result as ApiResult.Success<AnnouncementDto?>).data
-        requireNotNull(announcement)
-        assertEquals("ann-1", announcement.id)
-        assertEquals("停机维护", announcement.title)
-        assertEquals("周日 02:00-03:00 系统升级", announcement.content)
-        assertEquals("2026-10-24T08:30:00.000Z", announcement.updatedAt)
-        assertEquals("Bearer jwt-abc", server.takeRequest().getHeader("Authorization"))
-    }
-
-    @Test
-    fun announcementCurrentNullDataIsSuccessNull() = runTest {
-        // Backend answers ok(nil) -> {"code":0,"data":null} when the user has
-        // no unread announcement; this must be a success, not a failure.
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":0,"data":null}"""),
-        )
-
-        val result = api.currentAnnouncement("jwt-abc")
-
-        assertTrue(result is ApiResult.Success)
-        assertNull((result as ApiResult.Success<AnnouncementDto?>).data)
-    }
-
-    @Test
-    fun announcementNullDataFailsForNormalEndpoints() = runTest {
-        // Regular endpoints keep treating data:null as a malformed envelope —
-        // only the announcement path opted in.
+    fun nullDataFailsForNormalEndpoints() = runTest {
+        // Regular endpoints treat data:null as a malformed envelope.
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
@@ -273,25 +227,5 @@ class ApiClientTest {
         val result = api.fetchProfile("jwt-abc")
 
         assertTrue(result is ApiResult.Failure)
-    }
-
-    @Test
-    fun announcementAckPostsVerbatimAsOf() = runTest {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":0,"data":true}"""),
-        )
-
-        val result = api.ackAnnouncement("jwt-abc", "ann-1", "2026-10-24T08:30:00.000Z")
-
-        assertTrue(result is ApiResult.Success)
-
-        val recorded = server.takeRequest()
-        assertEquals("POST", recorded.method)
-        assertEquals("/api/announcements/ann-1/ack", recorded.path)
-        assertEquals("Bearer jwt-abc", recorded.getHeader("Authorization"))
-        // asOf must echo updatedAt verbatim: the backend compares strings.
-        assertEquals("""{"asOf":"2026-10-24T08:30:00.000Z"}""", recorded.body.readUtf8())
     }
 }

@@ -21,23 +21,6 @@ internal data class UpdateProfileRequest(
 )
 
 @Serializable
-internal data class AckAnnouncementRequest(val asOf: String)
-
-/**
- * Announcement card shown once per user until acked. Every field defaults so
- * additive backend changes never break envelope decoding; [updatedAt] must be
- * echoed verbatim as the ack `asOf` guard — the backend compares strings.
- */
-@Serializable
-data class AnnouncementDto(
-    val id: String = "",
-    val title: String = "",
-    val content: String = "",
-    val createdAt: String = "",
-    val updatedAt: String = "",
-)
-
-@Serializable
 data class RedeemResponse(val profile: UserProfile = UserProfile())
 
 /** Null fields are dropped by Json(explicitNulls = false) on the wire. */

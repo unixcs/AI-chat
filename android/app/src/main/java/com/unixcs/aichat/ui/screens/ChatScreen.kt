@@ -3,7 +3,6 @@ package com.unixcs.aichat.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -37,12 +37,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -61,13 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unixcs.aichat.R
 import com.unixcs.aichat.data.chat.ChatMessage
-import com.unixcs.aichat.ui.announcement.AnnouncementViewModel
 import com.unixcs.aichat.ui.chat.ChatViewModel
-import com.unixcs.aichat.ui.components.DrawerShell
 import com.unixcs.aichat.ui.components.MarkdownText
-import com.unixcs.aichat.ui.components.settleTo
 import kotlinx.coroutines.launch
-import org.koin.androidx.compose.koinViewModel
 
 private const val DRAFT_ID = "__draft__"
 
@@ -81,17 +80,12 @@ fun ChatScreen(
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val showPreferenceEntry by viewModel.showPreferenceEntry.collectAsStateWithLifecycle()
-    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val userPhone by viewModel.userPhone.collectAsStateWithLifecycle()
     val bulkDelete by viewModel.bulkDelete.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val drawerProgress = remember { Animatable(0f) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var showPreferences by rememberSaveable { mutableStateOf(false) }
-    // Chat-screen-scoped: survives the Settings round-trip (no repeat popup)
-    // and dies with logout (no cross-account leak).
-    val announcementViewModel: AnnouncementViewModel = koinViewModel()
-    val pendingAnnouncement by announcementViewModel.pending.collectAsStateWithLifecycle()
 
     val display = remember(ui.messages, ui.streaming, ui.streamingText) {
         buildList {
@@ -122,36 +116,32 @@ fun ChatScreen(
         }
     }
 
-    // Wraps the whole Scaffold (bottom bar included) so the scrim also covers
-    // the input row. Caller-owned Animatable progress: no AnchoredDraggable,
-    // no NaN-anchor state machine — the class of wedge that froze the drawer.
-    DrawerShell(
-        progress = drawerProgress,
-        // settleTo carries the watchdog: even if the frame clock stalls, the
-        // drawer always lands fully open or fully closed — never wedged.
-        onDismiss = { scope.launch { drawerProgress.settleTo(0f) } },
-        sheet = {
-            HistoryDrawerContent(
-                conversations = conversations,
-                currentId = ui.conversationId,
-                userPhone = userPhone,
-                bulkProgress = bulkDelete,
-                onNewChat = {
-                    viewModel.startNewChat()
-                    scope.launch { drawerProgress.settleTo(0f) }
-                },
-                onSelect = { conversationId ->
-                    viewModel.openConversation(conversationId)
-                    scope.launch { drawerProgress.settleTo(0f) }
-                },
-                onRename = viewModel::renameConversation,
-                onDelete = viewModel::deleteConversation,
-                onDeleteMany = viewModel::deleteConversations,
-                onOpenSettings = {
-                    scope.launch { drawerProgress.settleTo(0f) }
-                    onOpenSettings()
-                },
-            )
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.widthIn(max = 340.dp)) {
+                HistoryDrawerContent(
+                    conversations = conversations,
+                    currentId = ui.conversationId,
+                    userPhone = userPhone,
+                    bulkProgress = bulkDelete,
+                    onNewChat = {
+                        viewModel.startNewChat()
+                        scope.launch { drawerState.close() }
+                    },
+                    onSelect = { conversationId ->
+                        viewModel.openConversation(conversationId)
+                        scope.launch { drawerState.close() }
+                    },
+                    onRename = viewModel::renameConversation,
+                    onDelete = viewModel::deleteConversation,
+                    onDeleteMany = viewModel::deleteConversations,
+                    onOpenSettings = {
+                        scope.launch { drawerState.close() }
+                        onOpenSettings()
+                    },
+                )
+            }
         },
     ) {
         Scaffold(
@@ -165,20 +155,11 @@ fun ChatScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerProgress.settleTo(1f) } }) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Default.Menu, contentDescription = "打开历史")
                         }
                     },
                     actions = {
-                        // Quick light/dark toggle, DeepSeek-style one-tap switch.
-                        IconButton(onClick = viewModel::toggleDarkMode) {
-                            Icon(
-                                painter = painterResource(
-                                    if (appearance.themeMode == "dark") R.drawable.ic_sun else R.drawable.ic_moon,
-                                ),
-                                contentDescription = if (appearance.themeMode == "dark") "切换浅色" else "切换深色",
-                            )
-                        }
                         if (showPreferenceEntry) {
                             TextButton(onClick = { showPreferences = true }) {
                                 Text("偏好")
@@ -276,17 +257,7 @@ fun ChatScreen(
             onLengthChange = viewModel::setAnswerLength,
             onStyleChange = viewModel::setAnswerStyle,
             onFormatChange = viewModel::setAnswerFormat,
-            // Gesture closes land at 0 inside the shell and report back here;
-            // without this the boolean stayed true and the button died.
-            onClosed = { showPreferences = false },
-        )
-    }
-
-    pendingAnnouncement?.let { announcement ->
-        AnnouncementCard(
-            announcement = announcement,
-            onAcknowledge = announcementViewModel::acknowledge,
-            onDismiss = announcementViewModel::dismiss,
+            onDismiss = { showPreferences = false },
         )
     }
 }
@@ -379,7 +350,9 @@ private fun CopyButton(text: String, alignEnd: Boolean, onCopied: () -> Unit) {
             ),
         ) {
             Icon(
-                painter = painterResource(if (copied) R.drawable.ic_check else R.drawable.ic_copy),
+                painter = painterResource(
+                    if (copied) R.drawable.ic_check else R.drawable.ic_copy,
+                ),
                 contentDescription = if (copied) "已复制" else "复制",
                 modifier = Modifier.size(16.dp),
             )
