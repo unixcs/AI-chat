@@ -1,6 +1,6 @@
 # AI-Chat 当前状态总览
 
-> 更新时间：2026-10-24（Android 1.2.0 发布；§0/§0.1/§0.2/§0.3 为最新权威，§1 及以后为 2026-09-05 历史记录）
+> 更新时间：2026-10-25（Android 1.4.0 回滚根除发布；§0/§0.1–§0.5 为最新权威，§1 及以后为 2026-09-05 历史记录）
 
 ## 0. 服务器职责划分（2026-10-24 用户决定，最高优先级，实地核查确认）
 
@@ -80,6 +80,39 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 
 - 真机冒烟（本环境无真机）：抽屉反复开合复现原 bug 场景、兑换码（yun1 有测试卡密则先测测试服）、昵称修改、主题切换与深浅切换、复制按钮、v1.0.0 覆盖安装。
 - Telegram 下载地址推送被阻塞：生产/yun1 容器与环境文件中不存在任何 TG bot token / chat id（符合「TG_BOT_TOKEN 仅环境变量，不进 Git」约定），需用户提供后才能推送。
+
+## 0.5 Android 1.4.0（R18 回滚根除，2026-10-25）
+
+### 发布
+
+| 项 | 值 |
+|---|---|
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.4.0>（tag 指向 `1ab2efc`） |
+| APK | `aichat-1.4.0.apk`，9,010,885 字节 |
+| SHA-256 | `397e3165d989344c0fbe35665c85cf5356db3ca2a2a331b56c82c4174f5db779`（校验链：下载文件重算 SHA-256 + apksigner v2 验签 + 证书 SHA-256 `ae272aa7…c81970` 与 v1.0.0–v1.3.0 逐版一致，同密钥覆盖安装免重登） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.4.0`，versionCode `11`；应用名「塔罗 Tarot」 |
+| release 端点 | `http://121.41.192.80:8181`（生产）；dex 隔离核验：classes2.dex 仅含 8181、classes.dex 无 IP、全包零 8189 |
+| CI | `Android_Debug` run 40139573820、`Android_Release` run 40139905806，均 success |
+| 后端改动 | 无（公告端点 `GET/POST /api/announcements/*` 保留，additive-only 契约未破坏；仅 APP 端不再调用） |
+
+### R18 根因与决策（第一性原理）
+
+真机复测判定 v1.3.0 修复无效且新增「编号卡片关不掉」。用户实测对照：v1.0.0 流畅零 bug（抽屉展开/折叠丝滑、轻扫可关、无假死），v1.1–v1.3 反复假死。git 考古结论：假死自 1.1.0 引入主题切换起出现，跨越官方抽屉（1.1）与自研壳（1.2/1.3）两种实现始终复现——唯一共同变量是主题切换链（DataStore 写入 → MaterialTheme 全树重组 + `enableEdgeToEdge` 重设窗口标志）在 OEM 掉帧风暴下与手势/动画竞态。R16/R17 在自研壳上打补丁方向本身错误。
+
+决策：**回滚 v1.0.0 基线**而非继续修补。物理移除触发器（主题切换机）+ 回归 M3 官方组件状态机，中间态不存在。
+
+- 移除：主题切换机（ThemeMode/AccentPalettes/外观点/顶栏深浅色按钮，Theme/Color/MainActivity 恢复 v1.0.0 原文，深浅色跟随系统）、自研 DrawerShell/BottomSheetShell（回到 ModalNavigationDrawer/ModalBottomSheet，BOM 回 2024.10.01）、公告弹窗（用户判定可有可无；「编号卡片」类新 bug 随之消除）。
+- 保留：兑换码、昵称修改、批量删除、塔罗品牌（图标/名称/`#2E3A59`）、AES-256-GCM 加密备份、消息复制按钮。
+- 顺手修：偏好入口按钮首帧闪现（stateIn 初始 true→false）。
+
+质量：57 项单元测试全绿（10 套件）；子代理对抗审查无 P0/P1（核对 DI 图、drawerState 3 处 close 均 scope.launch、showPreferences 经 onDismissRequest 复位、资源引用、后端契约）。
+
+### 真机回归清单（待用户验收）
+
+1. 主题机已移除——不存在「切主题后假死」路径；设置页无外观区块，深浅色跟随系统。
+2. 抽屉展开/折叠丝滑，轻扫即可关闭（M3 官方状态机）。
+3. 兑换码/昵称/备份卡片（M3 AlertDialog）可正常关闭。
+4. 偏好入口按钮与偏好弹层（ModalBottomSheet，手势下滑关闭后布尔复位，按钮不失灵）。
 
 ## 0.4 Android 1.3.0（R17 迭代，2026-10-24）
 
