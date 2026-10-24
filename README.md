@@ -135,12 +135,12 @@ docker save ai-chat-go-frontend:latest | gzip -1 | ssh HOST 'gunzip | docker loa
 
 ## 7. Android 客户端
 
-原生 Kotlin + Jetpack Compose 客户端「塔罗 Tarot」，与网页版共用同一套 `/api`。当前 **v1.2.0（versionCode 9，包名 `com.unixcs.aichat`）**。
+原生 Kotlin + Jetpack Compose 客户端「塔罗 Tarot」，与网页版共用同一套 `/api`。当前 **v1.3.0（versionCode 10，包名 `com.unixcs.aichat`）**。
 
-- 下载：[`android-v1.2.0`](https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0) · `aichat-1.2.0.apk`（9,045,701 字节）
-- SHA-256：`12d4d70206662c84c8df087479506bbccda92cb35fadd2bc76fb9acef83cfa38`
+- 下载：[`android-v1.3.0`](https://github.com/unixcs/AI-chat/releases/tag/android-v1.3.0) · `aichat-1.3.0.apk`（9,045,701 字节）
+- SHA-256：`f0319654327ef4b477816e8ee55f8c7a15b4f0bfd6dbf36056cf9a7d785d29a8`
 
-功能：登录、SSE 流式对话、Markdown 渲染、Room 本地历史、DeepSeek 风格历史抽屉（无边框药丸行、长按=⋯菜单、多选批量删除带进度）、商家公告弹窗（后台更新后 APP 自动弹出）、三维度回答偏好、昵称修改、兑换码充值、消息快捷复制（AI 左下/用户右下）、深浅色快捷切换 + 6 套柔和主题色、AES-256-GCM 加密备份导入导出、星月品牌图标。v1.2.0 根除了抽屉/弹层假死：弃用 material3 ModalNavigationDrawer/ModalBottomSheet（AnchoredDraggable 缺陷与主题切换竞态），改为自研 Animatable 进度驱动的 DrawerShell/BottomSheetShell。
+功能：登录、SSE 流式对话、Markdown 渲染、Room 本地历史、DeepSeek 风格历史抽屉（无边框药丸行、长按=⋯菜单、多选批量删除带进度）、商家公告弹窗（后台更新后 APP 自动弹出）、三维度回答偏好、昵称修改、兑换码充值、消息快捷复制（AI 左下/用户右下）、深浅色快捷切换 + 6 套柔和主题色、AES-256-GCM 加密备份导入导出、星月品牌图标。v1.2.0 根除了抽屉/弹层假死（弃用 material3 Shell，改自研 Animatable 进度驱动）；v1.3.0 再修 R17 真机四项：假死终局修复（`settleTo` 看门狗：帧时钟停摆 1.2s 后 `snapTo` 兜底，中间态不可存活）、侧边栏轻扫回弹（速度优先 settle）、偏好按钮失灵（手势关闭 `onClosed` 闭环复位）、弹层掉帧（逐帧值仅绘制期读取 + `derivedStateOf` 归并）。
 
 服务器地址按构建类型隔离，debug 不会碰生产：
 

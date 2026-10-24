@@ -1,10 +1,10 @@
 # AI Chat Android 客户端
 
-原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.2.0（versionCode 9）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
+原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.3.0（versionCode 10）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
 
-- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>
-- APK：`aichat-1.2.0.apk`，9,045,701 字节
-- SHA-256：`12d4d70206662c84c8df087479506bbccda92cb35fadd2bc76fb9acef83cfa38`（与 GitHub asset digest 一致）
+- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.3.0>
+- APK：`aichat-1.3.0.apk`，9,045,701 字节
+- SHA-256：`f0319654327ef4b477816e8ee55f8c7a15b4f0bfd6dbf36056cf9a7d785d29a8`（本次 GitHub asset digest 接口未返回，校验链：下载文件重算 SHA-256 + apksigner v2 验签通过 + 证书 SHA-256 与 v1.0.0–v1.2.0 逐版一致）
 
 ## 功能
 
@@ -113,6 +113,7 @@ android/app/src/main/java/com/unixcs/aichat/
 
 ## 版本记录
 
+- **1.3.0（android-v1.3.0，2026-10-24）**：R17 真机四项反馈连根修复——①设置切主题色后开抽屉仍假死：根因是帧时钟停摆时 `animateTo` 永不完成（OEM 掉帧风暴 × targetSdk 35 edge-to-edge × MaterialTheme 全树重组），`settleTo` 看门狗 1.2 秒超时后 `snapTo`（纯状态写入、不依赖帧时钟）兜底，数学上不存在可卡死的中间态；②侧边栏左滑回弹：settle 改速度优先（≥150dp/s 的轻扫直接顺扫向落位，不再只看位置阈值）；③偏好按钮失灵：`BottomSheetShell` 手势关闭落底后回调 `onClosed`（一次性、重开时复位），ChatScreen 据此复位 `showPreferences`，此前布尔永远为 true 导致按钮死亡；④弹层掉帧：每帧值只在 `graphicsLayer{}`（绘制期）读取，组合期经 `derivedStateOf` 归并为 3 个布尔，抽屉壳不再逐帧重组整棵聊天树。子代理对抗审查 3 项 P1 加固（看门狗不覆盖新动画、onClosed 防重、边缘热区锁存复位）。67 项单元测试全绿（新增 settleTarget 边界 5 测）。
 - **1.2.0（android-v1.2.0，2026-10-24）**：根除抽屉/弹层假死——弃用 material3 ModalNavigationDrawer/ModalBottomSheet（AnchoredDraggable NaN 锚点 + 预测式返回手势与主题切换 enableEdgeToEdge 竞态所致），改为自研 Animatable 进度驱动的 DrawerShell/BottomSheetShell（单边缘热区拖拽、恒定 settle、无状态机可卡死）；历史抽屉对标 DeepSeek 全面重设计（无边框药丸行、无时间戳、填充式圆角搜索框、行内锚定菜单、长按=⋯菜单、首组标题批量管理入口、多选批量删除含进度条与 404 幂等）；新增商家公告弹窗（后台更新公告 → APP 自动弹出卡片 →「我知道了」确认，data:null 信封与 asOf 逐字回传均有单测锁定）；流式回复中删除当前会话先取消 SSE 再删服务端，杜绝缓存孤儿行。62 项单元测试全绿。
 - **1.1.0（android-v1.1.0，2026-10-24）**：修复侧边栏抽屉概率性空白假死（升级 Compose BOM 至 2024.12.01 / material3 1.3.1）；新增兑换码充值与昵称修改（APP 内直连 `/api/user/redeem`、`PUT /api/user/profile`）；聊天页顶部深浅色快捷切换 + 设置内 6 套主题色；消息气泡下方快捷复制按钮（AI 左下/用户右下）；改名「塔罗 Tarot」+ 星月图标；历史抽屉与气泡圆角精修。
 - **1.0.0（android-v1.0.0，2026-10-24）**：首个正式版——登录、SSE 流式对话、历史抽屉、回答偏好、加密备份、会员展示。

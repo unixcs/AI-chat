@@ -81,6 +81,38 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 - 真机冒烟（本环境无真机）：抽屉反复开合复现原 bug 场景、兑换码（yun1 有测试卡密则先测测试服）、昵称修改、主题切换与深浅切换、复制按钮、v1.0.0 覆盖安装。
 - Telegram 下载地址推送被阻塞：生产/yun1 容器与环境文件中不存在任何 TG bot token / chat id（符合「TG_BOT_TOKEN 仅环境变量，不进 Git」约定），需用户提供后才能推送。
 
+## 0.4 Android 1.3.0（R17 迭代，2026-10-24）
+
+### 发布
+
+| 项 | 值 |
+|---|---|
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.3.0>（tag 指向 `020d338`） |
+| APK | `aichat-1.3.0.apk`，9,045,701 字节 |
+| SHA-256 | `f0319654327ef4b477816e8ee55f8c7a15b4f0bfd6dbf36056cf9a7d785d29a8`（本次 GitHub asset digest 接口返回 null，校验链：下载文件重算 SHA-256 + apksigner v2 验签 + 证书与历史版本逐版一致） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.3.0`，versionCode `10`（pyaxmlparser 实测）；应用名「塔罗 Tarot」 |
+| 签名 | APK Signing Block v2 已验证（apksigner "Verifies"，scheme v2 true，1 signer）；证书 CN=AI-chat/O=unixcs，SHA-256 `ae272aa7f28bd623e3fe92eece4861601f2e23e02205fc1ff7d58b398dc81970`，与 v1.0.0/1.1.0/1.2.0 逐版比对一致（同密钥 → 覆盖安装免卸载重装） |
+| release 端点 | `http://121.41.192.80:8181`（生产）；classes2.dex 内唯一端点串即生产地址，全 dex 不含测试地址 8189 |
+| CI | `Android_Debug` run 40108264720、`Android_Release` run 40108794048，均 success |
+| 后端改动 | 无 |
+
+### 功能范围（R17：真机四项反馈连根修复）
+
+1. **假死终局修复（最高优先级）**：R16 之后真机仍复现「设置切主题色 → 返回主界面 → 开抽屉 → 空白假死」。第一性定位：假死 ≠ 抽屉状态机问题，而是 **`animateTo` 永不完成** —— 主题色切换触发 MaterialTheme 全树重组，叠加 OEM 掉帧风暴（targetSdk 35 edge-to-edge），`MonotonicFrameClock` 停摆期间 spring 动画等不到帧、协程永不返回，scrim 卡在半透明黑、覆盖内容并吞掉全部输入（即「空白假死」，只能杀进程）。修复：`settleTo` 扩展函数 —— `withTimeout(1200ms)` 包住 `animateTo`，超时捕获 `TimeoutCancellationException` 后 `if (!isRunning) snapTo(target)`（`snapTo` 是纯状态写入，不需要帧时钟；`isRunning` 守卫保证看门狗永不覆盖用户更新的动画目标）。任何中间态数学上不可存活。
+2. **侧边栏左滑回弹**：上一轮修复后 settle 只看位置阈值（>0.5 吸开），轻扫释放时速度信息被丢弃 → 快速左滑被弹回。修复：`settleTarget(value, velocity, flickPx)` 速度优先 —— |velocity| ≥ 150dp/s 直接顺扫向落位，慢速释放回落到位置规则；纯函数 5 项边界单测（含 0.5 边界、正负速度）。
+3. **偏好按钮失灵**：手势下拉关闭偏好弹层后，`showPreferences` 布尔永远停在 true，再点按钮 `showPreferences = true` 是同值写、不触发重组 → 按钮永久死亡（三条关闭路径 scrim 点按/返回键/下拉都走 `close()`，但没人回调状态）。修复：`BottomSheetShell` 增加 `onClosed` 回调（`closedReported` 防重、重开时复位），ChatScreen `onClosed = { showPreferences = false }` 闭环。
+4. **弹层掉帧**：抽屉壳逐帧读 `progress.value` 于组合期 → 每帧重组整棵聊天 Scaffold。修复：每帧值只进 `graphicsLayer{}`（绘制期，不触发重组）；组合期仅 3 个 `derivedStateOf` 布尔（open/closed/covered），每次过渡翻转一次。
+
+### 质量与流程
+
+- 子代理对抗性审查：VERDICT **RELEASE（0×P0）**；3×P1 全部当场修复（F1 看门狗与用户新动画的竞态守卫、F2 `onClosed` 双触发防重、F3 边缘热区 `edgeDragging` 锁存经 `DisposableEffect` 复位）；4×P2 复核为无需改动（VelocityTracker 三共享非并发、主题切换复现路径已覆盖）。
+- 本地 docker 编译（ai-builder:17）：`testDebugUnitTest` **67 用例 0 失败（12 套件，新增 ShellSettleTest）**，`assembleDebug` BUILD SUCCESSFUL。
+- 抽屉热区拖拽中途结构性 dispose 时 onDragEnd/Cancel 均不执行的边界已用 `DisposableEffect(Unit){ onDispose }` 兜底。
+
+### 未完成项
+
+- 真机冒烟（本环境无真机）：主题切换 ×3 → 开抽屉（原 bug 场景）、轻扫左滑关闭、偏好连续开合 20 次、弹层动画帧率体感。
+
 ## 0.3 Android 1.2.0（R16 迭代，2026-10-24）
 
 ### 发布
