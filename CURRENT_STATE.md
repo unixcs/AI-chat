@@ -87,12 +87,13 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 
 | 项 | 值 |
 |---|---|
-| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>（tag 指向发布时 commit） |
-| APK | `aichat-1.2.0.apk` |
-| SHA-256 | 见 Release 页面校验信息（与 GitHub asset digest 比对） |
-| 包信息 | `com.unixcs.aichat`，versionName `1.2.0`，versionCode `9`；应用名「塔罗 Tarot」 |
-| 签名 | APK Signing Block v2 已验证；keystore 复用同一密钥（GitHub Secrets） |
-| release 端点 | `http://121.41.192.80:8181`（生产）；APK dex 内不含测试地址 8189 |
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>（tag 指向 `c5e16ce`） |
+| APK | `aichat-1.2.0.apk`，9,045,701 字节 |
+| SHA-256 | `12d4d70206662c84c8df087479506bbccda92cb35fadd2bc76fb9acef83cfa38`（与 GitHub asset digest 一致） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.2.0`，versionCode `9`（pyaxmlparser 实测）；应用名「塔罗 Tarot」 |
+| 签名 | APK Signing Block v2 已验证（magic `APK Sig Block 42`，scheme id `0x7109871a`）；keystore 复用同一密钥（GitHub Secrets） |
+| release 端点 | `http://121.41.192.80:8181`（生产）；dex 内唯一端点串即生产地址，不含测试地址 8189 |
+| CI | `Android_Debug` run 40091388078、`Android_Release` run 40091736757，均 success |
 | 后端改动 | 无——公告复用既有 `GET /api/announcements/current`、`POST /api/announcements/{id}/ack` |
 
 ### 功能范围（R16）

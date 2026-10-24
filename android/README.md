@@ -3,8 +3,8 @@
 原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.2.0（versionCode 9）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
 
 - 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>
-- APK：`aichat-1.2.0.apk`
-- SHA-256：见 Release 页面校验信息
+- APK：`aichat-1.2.0.apk`，9,045,701 字节
+- SHA-256：`12d4d70206662c84c8df087479506bbccda92cb35fadd2bc76fb9acef83cfa38`（与 GitHub asset digest 一致）
 
 ## 功能
 
