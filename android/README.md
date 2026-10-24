@@ -82,6 +82,8 @@ git push origin android-v1.0.0
 
 tag 推送触发 `.github/workflows/android-release.yml`：解码 keystore → 单测 → `assembleRelease` → 把 APK 传到对应 tag 的 GitHub Release。`Android_Debug` 工作流在每次 `android/**` 变更推送到 `main` 时运行单测并上传 debug APK artifact。
 
+发布地址交付约定（2026-10-24 用户决定）：每次编译发布完成后，直接在会话中把 GitHub Release 下载地址推送给用户（Release 页 + APK 直链 + SHA-256）；Telegram 推送方案搁置。
+
 ## 加密备份格式
 
 ```

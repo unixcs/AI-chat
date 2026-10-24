@@ -111,7 +111,7 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 ### 未完成项
 
 - 真机冒烟（本环境无真机）。
-- Telegram 下载地址推送仍待用户提供 bot token / chat id。
+- 下载地址交付方式（2026-10-24 用户决定）：每次编译发布完成后，直接在会话中把 GitHub Release 下载地址推送给用户（Release 页 + APK 直链 + SHA-256），不走 Telegram 推送（方案搁置）。
 
 ## 1. 仓库和代码在哪儿
 
