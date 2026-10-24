@@ -10,6 +10,8 @@ import com.unixcs.aichat.data.prefs.PreferencesRepository
 import com.unixcs.aichat.data.session.AuthRepository
 import com.unixcs.aichat.data.session.SessionStore
 import com.unixcs.aichat.data.settings.AppSettingsStore
+import com.unixcs.aichat.ui.announcement.AnnouncementRepository
+import com.unixcs.aichat.ui.announcement.AnnouncementViewModel
 import com.unixcs.aichat.ui.chat.ChatViewModel
 import com.unixcs.aichat.ui.backup.BackupViewModel
 import com.unixcs.aichat.ui.session.SessionViewModel
@@ -69,10 +71,12 @@ val appModule = module {
     single { ChatStreamClient(BuildConfig.API_BASE_URL, get(named(STREAM_CLIENT)), get()) }
     single { ChatRepository(get(), get(), get()) }
     single { AccountRepository(get()) }
+    single { AnnouncementRepository(get()) }
 
     viewModel { LoginViewModel(get()) }
     viewModel { SessionViewModel(get(), get()) }
     viewModel { ChatViewModel(get(), get(), get(), get(), get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { AnnouncementViewModel(get(), get()) }
 }

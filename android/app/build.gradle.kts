@@ -19,8 +19,8 @@ android {
         applicationId = "com.unixcs.aichat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.1.0"
+        versionCode = 9
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -73,8 +73,9 @@ android {
 }
 
 dependencies {
-    // 2024.12.01 ships material3 1.3.1, which fixes the ModalNavigationDrawer
-    // freezes (blank screen, dead back gesture) seen on 1.3.0.
+    // R16: drawer/bottom-sheet freeze root-caused to material3's
+    // AnchoredDraggable-based components themselves (not a version bug);
+    // they are replaced by hand-rolled DrawerShell/BottomSheetShell.
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")

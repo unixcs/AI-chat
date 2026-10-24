@@ -81,6 +81,15 @@ class ChatViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Masked-phone strip at the drawer bottom reads this. */
+    val userPhone: StateFlow<String?> = store.phone
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _bulkDelete = MutableStateFlow<Pair<Int, Int>?>(null)
+
+    /** null = idle; (done, total) while a bulk delete is running. */
+    val bulkDelete: StateFlow<Pair<Int, Int>?> = _bulkDelete.asStateFlow()
+
     private var streamJob: Job? = null
 
     init {
@@ -215,18 +224,69 @@ class ChatViewModel(
     }
 
     fun deleteConversation(conversationId: String) {
+        // Cancel the stream before the DELETE: if this is the conversation
+        // that is currently streaming, the still-alive SSE job would write
+        // its finish-time message fetch back over the wiped cache (orphan
+        // rows until the next refresh). On failure the banner still shows
+        // and the conversation stays in the drawer to reopen.
+        if (_ui.value.conversationId == conversationId) {
+            startNewChat()
+        }
         viewModelScope.launch {
             when (val result = repo.deleteConversation(conversationId)) {
                 is ApiResult.Success -> {
                     dao.deleteConversationCascade(conversationId)
-                    if (_ui.value.conversationId == conversationId) {
-                        startNewChat()
-                    }
                     refreshConversations()
                 }
 
                 is ApiResult.Failure -> _ui.update { it.copy(error = result.message) }
             }
+        }
+    }
+
+    /**
+     * Bulk delete from the drawer's selection mode. A 404 means the server has
+     * already lost the conversation (deleted on another device, or a leftover
+     * from an earlier failed pass) — treating it as success is what keeps the
+     * local cache from holding zombie rows forever. Only network errors and
+     * 5xx keep a row locally. Runs in the ViewModel so the user may close the
+     * drawer mid-delete; the drawer just watches [bulkDelete] for progress.
+     */
+    fun deleteConversations(ids: List<String>) {
+        if (ids.isEmpty()) return
+        if (_bulkDelete.value != null) return
+        viewModelScope.launch {
+            _bulkDelete.value = 0 to ids.size
+            val deleted = mutableListOf<String>()
+            var failures = 0
+            ids.forEachIndexed { index, id ->
+                // Cancel the stream before its DELETE: whether it was already
+                // streaming when the batch started or got opened mid-batch, a
+                // still-alive SSE job would write its finish-time message
+                // fetch back over the freshly wiped cache (orphan rows).
+                if (_ui.value.conversationId == id) {
+                    startNewChat()
+                }
+                when (val result = repo.deleteConversation(id)) {
+                    is ApiResult.Success -> deleted += id
+                    is ApiResult.Failure ->
+                        if (result.status == 404) {
+                            deleted += id
+                        } else {
+                            failures += 1
+                        }
+                }
+                _bulkDelete.value = (index + 1) to ids.size
+            }
+            dao.deleteConversationsCascade(deleted)
+            if (_ui.value.conversationId in deleted) {
+                startNewChat()
+            }
+            refreshConversations()
+            if (failures > 0) {
+                _ui.update { it.copy(error = "$failures 个对话删除失败，请稍后重试") }
+            }
+            _bulkDelete.value = null
         }
     }
 

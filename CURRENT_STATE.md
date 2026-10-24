@@ -1,6 +1,6 @@
 # AI-Chat 当前状态总览
 
-> 更新时间：2026-10-24（Android 1.1.0 发布；§0/§0.1/§0.2 为最新权威，§1 及以后为 2026-09-05 历史记录）
+> 更新时间：2026-10-24（Android 1.2.0 发布；§0/§0.1/§0.2/§0.3 为最新权威，§1 及以后为 2026-09-05 历史记录）
 
 ## 0. 服务器职责划分（2026-10-24 用户决定，最高优先级，实地核查确认）
 
@@ -80,6 +80,37 @@ CI：`Android_Debug`（run 40032342820）与 `Android_Release`（run 40032822448
 
 - 真机冒烟（本环境无真机）：抽屉反复开合复现原 bug 场景、兑换码（yun1 有测试卡密则先测测试服）、昵称修改、主题切换与深浅切换、复制按钮、v1.0.0 覆盖安装。
 - Telegram 下载地址推送被阻塞：生产/yun1 容器与环境文件中不存在任何 TG bot token / chat id（符合「TG_BOT_TOKEN 仅环境变量，不进 Git」约定），需用户提供后才能推送。
+
+## 0.3 Android 1.2.0（R16 迭代，2026-10-24）
+
+### 发布
+
+| 项 | 值 |
+|---|---|
+| Release | <https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>（tag 指向发布时 commit） |
+| APK | `aichat-1.2.0.apk` |
+| SHA-256 | 见 Release 页面校验信息（与 GitHub asset digest 比对） |
+| 包信息 | `com.unixcs.aichat`，versionName `1.2.0`，versionCode `9`；应用名「塔罗 Tarot」 |
+| 签名 | APK Signing Block v2 已验证；keystore 复用同一密钥（GitHub Secrets） |
+| release 端点 | `http://121.41.192.80:8181`（生产）；APK dex 内不含测试地址 8189 |
+| 后端改动 | 无——公告复用既有 `GET /api/announcements/current`、`POST /api/announcements/{id}/ack` |
+
+### 功能范围（R16）
+
+1. **抽屉/弹层假死根除（核心修复）**：R15 升级 material3 1.3.1 后真机上假死仍复现，本轮根因定位为 ModalNavigationDrawer/ModalBottomSheet 自身骑在 AnchoredDraggableState 上（锚点设置前 offset 为 NaN）+ DrawerPredictiveBackHandler，与主题切换时 `enableEdgeToEdge` 重设窗口标志存在竞态。修复方式是彻底弃用这两个组件，改为自研 `DrawerShell`/`BottomSheetShell`：单一 Animatable 进度（0=关/1=开）、左边缘 24dp 热区拖拽（`edgeDragging` 保证手势进行中热区不离开组合树）、松手恒定 settle（无状态机可卡死）、返回键为自持有 BackHandler。主题切换 ×3 后开抽屉不再假死；旋转/进程重建后抽屉回到安全关闭态。
+2. **历史抽屉对标 DeepSeek 重设计**：无边框药丸行（24dp 圆角）、行不带时间戳、填充式圆角搜索框、仅当前会话行显示 ⋯、长按任意行弹出与 ⋯ 相同的行内锚定菜单（重命名/删除）、首个分组标题行批量管理图标、多选模式（圆形勾选框 + 底部删除栏 + 删除进度条）；批量删除 404 视为幂等成功、仅网络错误与 5xx 保留本地行，Room 级联单事务清理；流式回复进行中删除当前会话会先取消 SSE 再发 DELETE，杜绝缓存孤儿行。
+3. **商家公告弹窗**：后台管理员更新公告后，用户打开 APP 聊天页约 0.6 秒自动弹出公告卡片（Dialog，跟随深浅色）；「我知道了」确认上报 ack（`asOf` 逐字回传），遮罩/返回键关闭不 ack，下次仍会提醒；公告内容更新后重新弹出。ViewModel 作用域绑定聊天页导航条目，退出登录即销毁，无跨账号残留；拉取失败静默不打扰。信封 `data:null` 处理与 ack 请求体均有单测锁定。
+
+### 质量与流程
+
+- 子代理可行性审查：VERDICT PASS（0×P1）；吸收修复 2×P2（流式删除竞态、快速拖拽丢增量）与 3×P3（弹窗状态可保存、批量删除入口未随进行中隐藏、pointerInput 以宽度为 key 可能中断手势）。
+- 本地 docker 编译（ai-builder:17，需 `-e ANDROID_HOME=/opt/android-sdk`）：`testDebugUnitTest` 62 用例 0 失败（11 套件），`assembleDebug` BUILD SUCCESSFUL。
+- 真机冒烟仍需人工：主题切换 ×3 → 开抽屉（原 bug 场景）、批量删除含正在流式的会话、长按行呼出菜单、公告弹出与确认。
+
+### 未完成项
+
+- 真机冒烟（本环境无真机）。
+- Telegram 下载地址推送仍待用户提供 bot token / chat id。
 
 ## 1. 仓库和代码在哪儿
 

@@ -72,6 +72,20 @@ abstract class ChatDao {
         deleteConversation(conversationId)
     }
 
+    @Query("DELETE FROM messages WHERE conversationId IN (:ids)")
+    abstract suspend fun deleteMessagesIn(ids: List<String>)
+
+    @Query("DELETE FROM conversations WHERE id IN (:ids)")
+    abstract suspend fun deleteConversationsIn(ids: List<String>)
+
+    /** One transaction for a whole bulk delete so the cache never half-clears. */
+    @Transaction
+    open suspend fun deleteConversationsCascade(ids: List<String>) {
+        if (ids.isEmpty()) return
+        deleteMessagesIn(ids)
+        deleteConversationsIn(ids)
+    }
+
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt, id")
     abstract suspend fun getMessages(conversationId: String): List<MessageEntity>
 

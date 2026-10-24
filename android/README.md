@@ -1,17 +1,18 @@
 # AI Chat Android 客户端
 
-原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.1.0（versionCode 8）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
+原生 Android 客户端，与网页版共用同一套 Go 后端（`/api` 契约完全一致）。当前版本 **1.2.0（versionCode 9）**，包名 `com.unixcs.aichat`，应用名「塔罗 Tarot」。
 
-- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.1.0>
-- APK：`aichat-1.1.0.apk`，8,994,657 字节
-- SHA-256：`9d51933f8f2be7729ef0b58a19e73c7d2fbeb676e563b41f6fd0dfe2e3bc1126`
+- 下载：<https://github.com/unixcs/AI-chat/releases/tag/android-v1.2.0>
+- APK：`aichat-1.2.0.apk`
+- SHA-256：见 Release 页面校验信息
 
 ## 功能
 
 - 手机号 + 密码登录；JWT 保存在 DataStore，启动时校验会话，失效自动回登录页
 - SSE 流式对话，逐字渲染；会话与消息写入 Room，弱网/重启后可继续查看
 - AI 回复 Markdown 渲染：标题、列表、引用、代码块、行内样式、链接（流式过程中先按纯文本显示，结束后再渲染）
-- 抽屉式历史：按时间分组、搜索、重命名、删除
+- 抽屉式历史（DeepSeek 风格）：无边框圆角行、无时间戳、按时间分组、搜索、长按或 ⋯ 呼出重命名/删除、多选批量删除（进度反馈）
+- 商家公告弹窗：后台更新公告后，用户打开 APP 聊天页约 0.6 秒自动弹出公告卡片，点「我知道了」确认；同一内容不再重复打扰，公告内容更新后再次弹出
 - 回答偏好：长度 / 风格 / 输出格式三维度组合，发送时即时生效；可隐藏聊天页入口
 - 账户中心：昵称修改（APP 内直改）、兑换码充值（`POST /api/user/redeem`，成功后即时刷新会员信息）、会员到期展示
 - 消息快捷复制：气泡下方按钮，AI 消息在左下、用户消息在右下（DeepSeek 式镜像布局），点击后打勾反馈 1.5 秒
@@ -24,7 +25,7 @@
 
 | 层 | 选型 |
 |---|---|
-| 语言 / UI | Kotlin 2.0.21、Jetpack Compose（BOM 2024.12.01，material3 1.3.1）、Material 3 |
+| 语言 / UI | Kotlin 2.0.21、Jetpack Compose（BOM 2024.12.01，material3 1.3.1，抽屉/底部弹层为自研 Shell）、Material 3 |
 | 架构 | MVVM + StateFlow + Navigation Compose 2.8.5 |
 | 依赖注入 | Koin 4.0.0 |
 | 本地存储 | Room 2.6.1（KSP）+ DataStore Preferences |
@@ -110,6 +111,7 @@ android/app/src/main/java/com/unixcs/aichat/
 
 ## 版本记录
 
+- **1.2.0（android-v1.2.0，2026-10-24）**：根除抽屉/弹层假死——弃用 material3 ModalNavigationDrawer/ModalBottomSheet（AnchoredDraggable NaN 锚点 + 预测式返回手势与主题切换 enableEdgeToEdge 竞态所致），改为自研 Animatable 进度驱动的 DrawerShell/BottomSheetShell（单边缘热区拖拽、恒定 settle、无状态机可卡死）；历史抽屉对标 DeepSeek 全面重设计（无边框药丸行、无时间戳、填充式圆角搜索框、行内锚定菜单、长按=⋯菜单、首组标题批量管理入口、多选批量删除含进度条与 404 幂等）；新增商家公告弹窗（后台更新公告 → APP 自动弹出卡片 →「我知道了」确认，data:null 信封与 asOf 逐字回传均有单测锁定）；流式回复中删除当前会话先取消 SSE 再删服务端，杜绝缓存孤儿行。62 项单元测试全绿。
 - **1.1.0（android-v1.1.0，2026-10-24）**：修复侧边栏抽屉概率性空白假死（升级 Compose BOM 至 2024.12.01 / material3 1.3.1）；新增兑换码充值与昵称修改（APP 内直连 `/api/user/redeem`、`PUT /api/user/profile`）；聊天页顶部深浅色快捷切换 + 设置内 6 套主题色；消息气泡下方快捷复制按钮（AI 左下/用户右下）；改名「塔罗 Tarot」+ 星月图标；历史抽屉与气泡圆角精修。
 - **1.0.0（android-v1.0.0，2026-10-24）**：首个正式版——登录、SSE 流式对话、历史抽屉、回答偏好、加密备份、会员展示。
 
@@ -117,6 +119,6 @@ android/app/src/main/java/com/unixcs/aichat/
 
 - 生产后端目前是明文 HTTP（受网络白名单限制），后续上 HTTPS 后应同步收紧 `network_security_config.xml`
 - 备份只覆盖本机会话与消息，不含图片/附件（当前后端也没有附件能力）
-- 未接入推送；会员到期、公告更新需要打开 App 后刷新
+- 未接入推送；会员到期、公告更新需要打开 App 后刷新（公告弹窗在打开聊天页时拉取）
 - 真机冒烟需人工完成：登录、流式对话、断网重连、历史重命名/删除、导出后清数据再导入、深色模式
-- R15 新功能（抽屉反复开合、兑换码、昵称修改、主题切换、复制按钮）尚待真机回归
+- R16 新功能（自研抽屉手势、批量删除、公告弹窗）尚待真机回归
